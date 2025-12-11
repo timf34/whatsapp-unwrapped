@@ -144,16 +144,23 @@ def print_summary(stats: Statistics, paths: OutputPaths) -> None:
                 else:
                     print(f"  {person}: {avg_time / 60:.1f} hours")
 
-    # Top content
+    # Top emojis (detailed display)
     if stats.content.top_emojis:
         print()
-        try:
-            top_emojis = " ".join(e for e, _ in stats.content.top_emojis[:5])
-            print(f"Top emojis: {top_emojis}")
-        except UnicodeEncodeError:
-            # Skip emoji display if console doesn't support it
-            emoji_list = [f"{e}({c})" for e, c in stats.content.top_emojis[:5]]
-            print(f"Top emojis: {len(stats.content.top_emojis[:5])} emojis (see JSON for details)")
+        print("Top emojis:")
+        # Get max count for scaling bars
+        max_count = max(c for _, c in stats.content.top_emojis[:10]) if stats.content.top_emojis else 1
+        
+        for emoji, count in stats.content.top_emojis[:10]:
+            # Create a simple bar visualization with ASCII-safe characters
+            bar_length = min(int(count / max_count * 30), 30)
+            bar = "#" * bar_length
+            
+            try:
+                print(f"  {emoji}  {bar} {count:,}")
+            except (UnicodeEncodeError, UnicodeError):
+                # Fallback for Windows console: show only count
+                print(f"  [emoji]  {bar} {count:,}")
 
     # Fun facts
     print()

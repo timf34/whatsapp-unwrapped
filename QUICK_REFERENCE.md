@@ -182,8 +182,3 @@ facts = get_fun_facts(stats)
 # "🔥 Longest streak: 187 days in a row!"
 # "⚡ Vita replies within 5 minutes 31.5% of the time!"
 ```
-
----
-
-**Quick Tip:** Use `export_for_web(stats)` to get everything at once for web dashboards!
-
