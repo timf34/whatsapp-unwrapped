@@ -50,13 +50,13 @@ Examples:
         "--output-dir",
         "-o",
         default=None,
-        help="Directory for output files (default: output_<filename>)",
+        help="Directory for output files (default: output_data/<filename>)",
     )
 
     parser.add_argument(
         "--gap-hours",
         type=float,
-        default=4.0,
+        default=8.0,
         help="Hours of inactivity to define conversation restart (default: 4.0)",
     )
 
@@ -194,7 +194,7 @@ def main() -> int:
         if args.output_dir is None:
             input_path = Path(args.input_file)
             # Use the stem (filename without extension) for the output directory
-            output_dir = f"output_{input_path.stem}"
+            output_dir = f"output_data/{input_path.stem}"
         else:
             output_dir = args.output_dir
         
