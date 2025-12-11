@@ -3,16 +3,16 @@
 from pathlib import Path
 from typing import Optional
 
-from ..exceptions import ParseError
-from ..models import ChatType, Conversation, Message
-from ..utils.text_utils import (
+from exceptions import ParseError
+from models import ChatType, Conversation, Message
+from utils.text_utils import (
     detect_links,
     extract_mentions,
     is_deleted_message,
     is_media_placeholder,
     is_system_message,
 )
-from .format_utils import (
+from parser.format_utils import (
     extract_sender_and_text,
     is_message_start,
     parse_message_line,

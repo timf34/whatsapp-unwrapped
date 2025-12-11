@@ -2,8 +2,8 @@
 
 from datetime import datetime
 
-from ..exceptions import UnsupportedFormatError
-from ..utils.constants import TIMESTAMP_PATTERN
+from exceptions import UnsupportedFormatError
+from utils.constants import TIMESTAMP_PATTERN
 
 
 def is_message_start(line: str) -> bool:

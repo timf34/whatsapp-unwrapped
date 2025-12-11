@@ -2,8 +2,9 @@
 
 import pytest
 
-from whatsapp_unwrapped import ChatType, load_chat
-from whatsapp_unwrapped.exceptions import ParseError, UnsupportedFormatError
+from models import ChatType
+from parser import load_chat
+from exceptions import ParseError, UnsupportedFormatError
 
 
 class TestLoadChat:

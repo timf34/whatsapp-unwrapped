@@ -1,6 +1,6 @@
 """Text processing utilities."""
 
-from .constants import (
+from utils.constants import (
     DELETED_MESSAGE_PATTERNS,
     MEDIA_PLACEHOLDER,
     MENTION_PATTERN,
