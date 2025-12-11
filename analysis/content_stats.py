@@ -48,6 +48,7 @@ def compute_content_metrics(
     top_ngrams = _extract_ngrams(conv, min_phrase_freq, max_ngram)
     top_emojis = _extract_emojis(conv, limit=15)
     top_emojis_per_person = _extract_emojis_per_person(conv, limit=10)
+    longest_messages = _extract_longest_messages(conv, limit=5)
 
     return ContentStats(
         top_words=top_words,
@@ -55,6 +56,7 @@ def compute_content_metrics(
         top_ngrams=top_ngrams,
         top_emojis=top_emojis,
         top_emojis_per_person=top_emojis_per_person,
+        longest_messages=longest_messages,
     )
 
 
@@ -141,5 +143,36 @@ def _extract_emojis_per_person(
 
 
 def _get_emojis(text: str) -> list[str]:
-    """Extract all emojis from text."""
-    return [char for char in text if emoji.is_emoji(char)]
+    """Extract full emoji sequences from text (handles multi-codepoint emojis)."""
+    return [item["emoji"] for item in emoji.emoji_list(text)]
+
+
+def _extract_longest_messages(conv: Conversation, limit: int = 5) -> list[dict[str, any]]:
+    """Extract longest messages by word count.
+    
+    Args:
+        conv: Parsed conversation
+        limit: Number of longest messages to return
+        
+    Returns:
+        List of dicts with message info (sender, timestamp, word_count, text)
+    """
+    message_data = []
+    
+    for msg in conv.messages:
+        if msg.sender and not msg.is_system and not msg.is_media and msg.text.strip():
+            words = msg.text.split()
+            word_count = len(words)
+            
+            # Only include messages with at least 10 words
+            if word_count >= 10:
+                message_data.append({
+                    "sender": msg.sender,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "word_count": word_count,
+                    "text": msg.text[:500]  # Truncate very long messages for JSON
+                })
+    
+    # Sort by word count descending and return top N
+    message_data.sort(key=lambda x: x["word_count"], reverse=True)
+    return message_data[:limit]

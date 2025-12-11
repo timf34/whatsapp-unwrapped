@@ -21,12 +21,14 @@ def compute_interaction_patterns(conv: Conversation, gap_hours: float = 4.0) -> 
     avg_response_time = _compute_avg_response_times(response_times)
     conversation_initiators = _count_initiators(conv, gap_hours)
     messages_per_conversation = _compute_messages_per_conversation(conv, gap_hours)
+    response_time_buckets = _bucket_response_times(response_times)
 
     return InteractionStats(
         response_times=response_times,
         avg_response_time=avg_response_time,
         conversation_initiators=conversation_initiators,
         messages_per_conversation=messages_per_conversation,
+        response_time_buckets=response_time_buckets,
     )
 
 
@@ -106,3 +108,31 @@ def _compute_messages_per_conversation(conv: Conversation, gap_hours: float) -> 
             conversation_count += 1
 
     return round(len(non_system_msgs) / conversation_count, 2)
+
+
+def _bucket_response_times(response_times: dict[str, list[float]]) -> dict[str, dict[str, int]]:
+    """Bucket response times into categories.
+    
+    Args:
+        response_times: Dict mapping person to list of response times in minutes
+        
+    Returns:
+        Dict mapping person to bucket counts
+        Buckets: "<5m", "5-30m", "30-120m", ">2h"
+    """
+    buckets: dict[str, dict[str, int]] = {}
+    
+    for person, times in response_times.items():
+        counters = {"<5m": 0, "5-30m": 0, "30-120m": 0, ">2h": 0}
+        for t in times:
+            if t < 5:
+                counters["<5m"] += 1
+            elif t < 30:
+                counters["5-30m"] += 1
+            elif t < 120:
+                counters["30-120m"] += 1
+            else:
+                counters[">2h"] += 1
+        buckets[person] = counters
+    
+    return buckets

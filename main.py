@@ -48,8 +48,8 @@ Examples:
     parser.add_argument(
         "--output-dir",
         "-o",
-        default="output",
-        help="Directory for output files (default: output)",
+        default=None,
+        help="Directory for output files (default: output_<filename>)",
     )
 
     parser.add_argument(
@@ -146,8 +146,13 @@ def print_summary(stats: Statistics, paths: OutputPaths) -> None:
     # Top content
     if stats.content.top_emojis:
         print()
-        top_emojis = " ".join(e for e, _ in stats.content.top_emojis[:5])
-        print(f"Top emojis: {top_emojis}")
+        try:
+            top_emojis = " ".join(e for e, _ in stats.content.top_emojis[:5])
+            print(f"Top emojis: {top_emojis}")
+        except UnicodeEncodeError:
+            # Skip emoji display if console doesn't support it
+            emoji_list = [f"{e}({c})" for e, c in stats.content.top_emojis[:5]]
+            print(f"Top emojis: {len(stats.content.top_emojis[:5])} emojis (see JSON for details)")
 
     # Output files
     print()
@@ -172,6 +177,14 @@ def main() -> int:
         logging.getLogger().setLevel(logging.INFO)
 
     try:
+        # Determine output directory based on input filename
+        if args.output_dir is None:
+            input_path = Path(args.input_file)
+            # Use the stem (filename without extension) for the output directory
+            output_dir = f"output_{input_path.stem}"
+        else:
+            output_dir = args.output_dir
+        
         # Parse
         print(f"Loading chat from {args.input_file}...")
         explicit_type = None if args.type == "auto" else args.type
@@ -191,12 +204,11 @@ def main() -> int:
         print("Generating outputs...")
         if args.json_only:
             from output.json_export import export_json
-            from pathlib import Path
-            Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-            json_path = export_json(stats, args.output_dir)
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            json_path = export_json(stats, output_dir)
             output_paths = OutputPaths(json_file=json_path, visualization_files=[])
         else:
-            output_paths = render_outputs(chat, stats, args.output_dir)
+            output_paths = render_outputs(chat, stats, output_dir)
 
         # Summary
         print_summary(stats, output_paths)

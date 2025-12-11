@@ -29,6 +29,7 @@ htmlcov/
 
 # Project specific
 output/
+output_*/
 *.log
 
 # Claude Code

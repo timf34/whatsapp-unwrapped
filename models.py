@@ -77,6 +77,13 @@ class BasicStats:
     total_messages: int
     total_words: int
     avg_message_length: dict[str, float]  # Average words per message
+    media_count: int
+    deleted_count: int
+    link_count: int
+    links_per_person: dict[str, int]
+    deleted_per_person: dict[str, int]
+    media_ratio_per_person: dict[str, float]  # Media messages / total messages
+    link_ratio_per_person: dict[str, float]  # Link messages / total messages
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -87,6 +94,13 @@ class BasicStats:
             "total_messages": self.total_messages,
             "total_words": self.total_words,
             "avg_message_length": self.avg_message_length,
+            "media_count": self.media_count,
+            "deleted_count": self.deleted_count,
+            "link_count": self.link_count,
+            "links_per_person": self.links_per_person,
+            "deleted_per_person": self.deleted_per_person,
+            "media_ratio_per_person": self.media_ratio_per_person,
+            "link_ratio_per_person": self.link_ratio_per_person,
         }
 
 
@@ -101,6 +115,13 @@ class TemporalStats:
     conversation_count: int  # Number of conversation sessions
     first_message_date: datetime
     last_message_date: datetime
+    days_active: int
+    avg_messages_per_day: float  # total / total_days
+    avg_messages_per_active_day: float  # total / days_active
+    longest_streak_days: int
+    longest_gap_days: int
+    most_active_date: Optional[str]  # YYYY-MM-DD
+    busiest_hour: Optional[int]  # 0-23
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -112,6 +133,13 @@ class TemporalStats:
             "conversation_count": self.conversation_count,
             "first_message_date": self.first_message_date.isoformat(),
             "last_message_date": self.last_message_date.isoformat(),
+            "days_active": self.days_active,
+            "avg_messages_per_day": self.avg_messages_per_day,
+            "avg_messages_per_active_day": self.avg_messages_per_active_day,
+            "longest_streak_days": self.longest_streak_days,
+            "longest_gap_days": self.longest_gap_days,
+            "most_active_date": self.most_active_date,
+            "busiest_hour": self.busiest_hour,
         }
 
 
@@ -124,6 +152,7 @@ class ContentStats:
     top_ngrams: dict[int, list[tuple[str, int]]]  # n -> list of (ngram, count)
     top_emojis: list[tuple[str, int]]  # (emoji, count) pairs
     top_emojis_per_person: dict[str, list[tuple[str, int]]]
+    longest_messages: list[dict[str, Any]]  # top N by word count
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -133,6 +162,7 @@ class ContentStats:
             "top_ngrams": {str(k): v for k, v in self.top_ngrams.items()},
             "top_emojis": self.top_emojis,
             "top_emojis_per_person": self.top_emojis_per_person,
+            "longest_messages": self.longest_messages,
         }
 
 
@@ -144,6 +174,7 @@ class InteractionStats:
     avg_response_time: dict[str, float]  # person -> average response time in minutes
     conversation_initiators: dict[str, int]  # person -> count of conversations started
     messages_per_conversation: float  # Average messages per conversation session
+    response_time_buckets: dict[str, dict[str, int]]  # person -> bucket -> count
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -152,6 +183,7 @@ class InteractionStats:
             "avg_response_time": self.avg_response_time,
             "conversation_initiators": self.conversation_initiators,
             "messages_per_conversation": self.messages_per_conversation,
+            "response_time_buckets": self.response_time_buckets,
         }
 
 
