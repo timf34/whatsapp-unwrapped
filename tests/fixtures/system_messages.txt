@@ -1,0 +1,7 @@
+10/10/2024, 14:05 - Messages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them. Learn more.
+10/10/2024, 14:06 - Alice: Hello!
+10/10/2024, 14:07 - Bob: Hi there!
+10/10/2024, 14:08 - Alice created group "Test Group"
+10/10/2024, 14:09 - Alice added Charlie
+10/10/2024, 14:10 - Charlie: Thanks for adding me!
+10/10/2024, 14:15 - Bob left
