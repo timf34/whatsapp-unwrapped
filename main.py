@@ -9,6 +9,7 @@ from analysis import run_analysis
 from exceptions import WhatsAppUnwrappedError
 from models import OutputPaths, Statistics
 from output import render_outputs
+from output.presentation import get_fun_facts
 from parser import load_chat
 
 # Configure logging
@@ -153,6 +154,18 @@ def print_summary(stats: Statistics, paths: OutputPaths) -> None:
             # Skip emoji display if console doesn't support it
             emoji_list = [f"{e}({c})" for e, c in stats.content.top_emojis[:5]]
             print(f"Top emojis: {len(stats.content.top_emojis[:5])} emojis (see JSON for details)")
+
+    # Fun facts
+    print()
+    print("Fun Facts:")
+    facts = get_fun_facts(stats)
+    for fact in facts:
+        try:
+            print(f"  • {fact}")
+        except UnicodeEncodeError:
+            # Fall back to ASCII representation for Windows console
+            fact_ascii = fact.encode('ascii', 'ignore').decode('ascii')
+            print(f"  • {fact_ascii}")
 
     # Output files
     print()
