@@ -22,9 +22,12 @@ DESIGN PRINCIPLES (non-negotiable):
    - Avoid superlatives like "always", "never", "the most"
    - "tends to" rather than "always does"
 
-4. CELEBRATE, DON'T ROAST
-   This is a gift, not a takedown. Find the endearing quirk in every pattern.
-   If something could read as criticism, reframe it as charming.
+4. AFFECTIONATE ROASTING
+   Friends lovingly roast each other. This is a gift with some bite.
+   - Highlight recurring failures they'd laugh at themselves about
+   - Use the "contradictions" (says X, does Y) for maximum comedic effect
+   - Keep it loving - if they'd be hurt reading it, don't include it
+   - The best roasts are ones where the person being roasted laughs hardest
 
 5. FUNNY
    Make them laugh and say "that's so us!"

@@ -105,6 +105,8 @@ class SessionLogger:
         all_funny: list,
         all_awards: list,
         all_snippets: list = None,
+        all_contradictions: list = None,
+        all_roasts: list = None,
     ) -> None:
         """Log all evidence before aggregation/deduplication."""
         if not self.enabled:
@@ -112,6 +114,10 @@ class SessionLogger:
 
         if all_snippets is None:
             all_snippets = []
+        if all_contradictions is None:
+            all_contradictions = []
+        if all_roasts is None:
+            all_roasts = []
 
         pre_agg = {
             "stage": "pre_aggregation",
@@ -122,6 +128,8 @@ class SessionLogger:
                 "funny_moments": len(all_funny),
                 "award_ideas": len(all_awards),
                 "snippets": len(all_snippets),
+                "contradictions": len(all_contradictions),
+                "roasts": len(all_roasts),
             },
             "all_quotes": all_quotes,
             "all_jokes": all_jokes,
@@ -129,6 +137,8 @@ class SessionLogger:
             "all_funny_moments": all_funny,
             "all_award_ideas": all_awards,
             "all_snippets": all_snippets,
+            "all_contradictions": all_contradictions,
+            "all_roasts": all_roasts,
         }
 
         self._write_json(pre_agg, self.session_dir / "pre_aggregation.json")
@@ -147,11 +157,35 @@ class SessionLogger:
                 "funny_moments": len(evidence.funny_moments),
                 "award_ideas": len(evidence.award_ideas),
                 "snippets": len(evidence.conversation_snippets),
+                "contradictions": len(evidence.contradictions),
+                "roasts": len(evidence.roasts),
             },
             "evidence": evidence.to_dict(),
         }
 
         self._write_json(post_agg, self.session_dir / "post_aggregation.json")
+
+    def log_quality_filter(self, evidence: ConversationEvidence) -> None:
+        """Log evidence after quality filtering."""
+        if not self.enabled:
+            return
+
+        filtered = {
+            "stage": "post_quality_filter",
+            "counts": {
+                "quotes": len(evidence.notable_quotes),
+                "jokes": len(evidence.inside_jokes),
+                "dynamics": len(evidence.dynamics),
+                "funny_moments": len(evidence.funny_moments),
+                "award_ideas": len(evidence.award_ideas),
+                "snippets": len(evidence.conversation_snippets),
+                "contradictions": len(evidence.contradictions),
+                "roasts": len(evidence.roasts),
+            },
+            "evidence": evidence.to_dict(),
+        }
+
+        self._write_json(filtered, self.session_dir / "post_quality_filter.json")
 
     def log_sonnet_prompt(self, prompt: str) -> None:
         """Log the full prompt sent to Sonnet."""

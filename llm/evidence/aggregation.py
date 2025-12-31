@@ -16,6 +16,8 @@ MAX_FUNNY_MOMENTS = 20
 MAX_STYLE_NOTES_PER_PERSON = 8
 MAX_AWARD_IDEAS = 30
 MAX_SNIPPETS = 15  # Conversation snippets are valuable context
+MAX_CONTRADICTIONS = 10  # Says X, does Y moments
+MAX_ROASTS = 15  # Affectionate roast material
 
 # Similarity threshold for deduplication
 SIMILARITY_THRESHOLD = 0.8
@@ -43,6 +45,8 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     funny_with_idx: list[tuple[int, dict]] = []
     awards_with_idx: list[tuple[int, dict]] = []
     snippets_with_idx: list[tuple[int, dict]] = []
+    contradictions_with_idx: list[tuple[int, dict]] = []
+    roasts_with_idx: list[tuple[int, dict]] = []
     all_style_notes: dict[str, list[str]] = defaultdict(list)
 
     for chunk_idx, packet in enumerate(packets):
@@ -58,6 +62,10 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
             awards_with_idx.append((chunk_idx, item))
         for item in packet.conversation_snippets:
             snippets_with_idx.append((chunk_idx, item))
+        for item in packet.contradictions:
+            contradictions_with_idx.append((chunk_idx, item))
+        for item in packet.roasts:
+            roasts_with_idx.append((chunk_idx, item))
 
         for person, notes in packet.style_notes.items():
             all_style_notes[person].extend(notes)
@@ -69,6 +77,8 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     sampled_funny = _temporal_sample(funny_with_idx, MAX_FUNNY_MOMENTS * 2)
     sampled_awards = _temporal_sample(awards_with_idx, MAX_AWARD_IDEAS * 2)
     sampled_snippets = _temporal_sample(snippets_with_idx, MAX_SNIPPETS * 2)
+    sampled_contradictions = _temporal_sample(contradictions_with_idx, MAX_CONTRADICTIONS * 2)
+    sampled_roasts = _temporal_sample(roasts_with_idx, MAX_ROASTS * 2)
 
     # Deduplicate and rank (now working on temporally diverse sample)
     deduped_quotes = _deduplicate_quotes(sampled_quotes)[:MAX_QUOTES]
@@ -78,6 +88,8 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     merged_style = _merge_style_notes(all_style_notes)
     ranked_awards = _rank_award_ideas(sampled_awards)[:MAX_AWARD_IDEAS]
     deduped_snippets = _deduplicate_snippets(sampled_snippets)[:MAX_SNIPPETS]
+    deduped_contradictions = _deduplicate_by_field(sampled_contradictions, "punchline")[:MAX_CONTRADICTIONS]
+    deduped_roasts = _deduplicate_by_field(sampled_roasts, "roast")[:MAX_ROASTS]
 
     return ConversationEvidence(
         notable_quotes=deduped_quotes,
@@ -87,6 +99,8 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
         style_notes=merged_style,
         award_ideas=ranked_awards,
         conversation_snippets=deduped_snippets,
+        contradictions=deduped_contradictions,
+        roasts=deduped_roasts,
     )
 
 
@@ -145,6 +159,8 @@ def _create_empty_evidence() -> ConversationEvidence:
         style_notes={},
         award_ideas=[],
         conversation_snippets=[],
+        contradictions=[],
+        roasts=[],
     )
 
 

@@ -102,9 +102,12 @@ def detect_all_patterns(
         patterns.append(pattern)
     patterns.extend(_detect_midnight_philosopher(user_messages))
 
-    # Phrase patterns
+    # Phrase patterns - catchphrases and verbal tics
     patterns.extend(_detect_catchphrase(user_messages).values())
     patterns.extend(_detect_laugh_style(user_messages).values())
+    patterns.extend(_detect_sentence_starters(user_messages).values())
+    patterns.extend(_detect_message_endings(user_messages).values())
+    patterns.extend(_detect_filler_phrases(user_messages).values())
     if pattern := _detect_apology_patterns(user_messages):
         patterns.append(pattern)
 
@@ -273,6 +276,169 @@ def _detect_midnight_philosopher(messages: list[Message]) -> list[DetectedPatter
 # =============================================================================
 # Phrase Pattern Detectors
 # =============================================================================
+
+
+# Sentence starters to detect
+SENTENCE_STARTERS = [
+    "honestly", "ngl", "tbh", "lowkey", "highkey", "literally", "basically",
+    "i mean", "like", "so basically", "wait", "omg", "oh my god", "bruh",
+    "yo", "ugh", "okay so", "right so", "the thing is", "fun fact",
+]
+
+# Message endings/sign-offs to detect
+MESSAGE_ENDINGS = [
+    "lol", "lmao", "haha", "hahaha", "hehe", "😂", "💀", "😭", "🤣",
+    "tbh", "ngl", "imo", "idk", "tho", "though", "anyways", "anyway",
+]
+
+# Filler phrases
+FILLER_PHRASES = [
+    "you know", "i guess", "kind of", "sort of", "i think", "i feel like",
+    "to be fair", "in fairness", "if that makes sense", "does that make sense",
+    "if you know what i mean", "or whatever", "or something", "and stuff",
+]
+
+
+def _detect_sentence_starters(messages: list[Message]) -> dict[str, DetectedPattern]:
+    """Detect signature sentence starters per person."""
+    patterns = {}
+
+    by_sender: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for msg in messages:
+        if not msg.sender or len(msg.text) < 5:
+            continue
+        text_lower = msg.text.lower().strip()
+
+        for starter in SENTENCE_STARTERS:
+            if text_lower.startswith(starter):
+                by_sender[msg.sender][starter] += 1
+                break  # Only count one starter per message
+
+    for person, counts in by_sender.items():
+        if not counts:
+            continue
+
+        total = sum(counts.values())
+        if total < MIN_PATTERN_FREQUENCY:
+            continue
+
+        # Find most common starter
+        top_starter, top_count = counts.most_common(1)[0]
+
+        if top_count < MIN_PATTERN_FREQUENCY:
+            continue
+
+        strength = min(1.0, top_count / 30)
+
+        patterns[person] = DetectedPattern(
+            pattern_type="sentence_starter",
+            person=person,
+            frequency=top_count,
+            evidence=[{"starter": top_starter, "count": top_count, "examples": list(counts.most_common(3))}],
+            strength=strength,
+            description=f"Starts messages with '{top_starter}' {top_count} times",
+        )
+
+    return patterns
+
+
+def _detect_message_endings(messages: list[Message]) -> dict[str, DetectedPattern]:
+    """Detect signature message endings per person (like ending with 'lol' or '💀')."""
+    patterns = {}
+
+    by_sender: dict[str, Counter[str]] = defaultdict(Counter)
+    total_messages: dict[str, int] = defaultdict(int)
+
+    for msg in messages:
+        if not msg.sender or len(msg.text) < 3:
+            continue
+        text_lower = msg.text.lower().strip()
+        total_messages[msg.sender] += 1
+
+        for ending in MESSAGE_ENDINGS:
+            if text_lower.endswith(ending):
+                by_sender[msg.sender][ending] += 1
+                break
+
+    for person, counts in by_sender.items():
+        if not counts:
+            continue
+
+        total_endings = sum(counts.values())
+        msg_count = total_messages[person]
+
+        if total_endings < MIN_PATTERN_FREQUENCY:
+            continue
+
+        # Find most common ending
+        top_ending, top_count = counts.most_common(1)[0]
+        percentage = (top_count / msg_count) * 100 if msg_count > 0 else 0
+
+        if top_count < MIN_PATTERN_FREQUENCY:
+            continue
+
+        strength = min(1.0, top_count / 40)
+
+        patterns[person] = DetectedPattern(
+            pattern_type="message_ending",
+            person=person,
+            frequency=top_count,
+            evidence=[{
+                "ending": top_ending,
+                "count": top_count,
+                "percentage": round(percentage, 1),
+                "all_endings": list(counts.most_common(5)),
+            }],
+            strength=strength,
+            description=f"Ends messages with '{top_ending}' {top_count} times ({round(percentage)}% of messages)",
+        )
+
+    return patterns
+
+
+def _detect_filler_phrases(messages: list[Message]) -> dict[str, DetectedPattern]:
+    """Detect filler phrases and verbal tics."""
+    patterns = {}
+
+    by_sender: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for msg in messages:
+        if not msg.sender or len(msg.text) < 10:
+            continue
+        text_lower = msg.text.lower()
+
+        for filler in FILLER_PHRASES:
+            count = text_lower.count(filler)
+            if count > 0:
+                by_sender[msg.sender][filler] += count
+
+    for person, counts in by_sender.items():
+        if not counts:
+            continue
+
+        total = sum(counts.values())
+        if total < MIN_PATTERN_FREQUENCY:
+            continue
+
+        # Find most common filler
+        top_filler, top_count = counts.most_common(1)[0]
+
+        if top_count < MIN_PATTERN_FREQUENCY:
+            continue
+
+        strength = min(1.0, top_count / 25)
+
+        patterns[person] = DetectedPattern(
+            pattern_type="filler_phrase",
+            person=person,
+            frequency=top_count,
+            evidence=[{"filler": top_filler, "count": top_count, "all_fillers": list(counts.most_common(5))}],
+            strength=strength,
+            description=f"Uses '{top_filler}' {top_count} times",
+        )
+
+    return patterns
 
 
 def _detect_catchphrase(messages: list[Message]) -> dict[str, DetectedPattern]:

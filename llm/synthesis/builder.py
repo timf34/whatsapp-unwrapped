@@ -227,6 +227,33 @@ def _format_evidence(evidence: ConversationEvidence) -> str:
                 lines.append(f"  → {punchline}")
         lines.append("")
 
+    # Contradictions - "says X, does Y" moments (great roast material)
+    if evidence.contradictions:
+        lines.append("### Contradictions (Says X, Does Y)")
+        lines.append("These highlight funny gaps between what someone says and what they do:")
+        for c in evidence.contradictions:
+            person = c.get("person", "?")
+            says = c.get("says", "")
+            does = c.get("does", "")
+            punchline = c.get("punchline", "")
+            lines.append(f"- **{person}**: Says '{says}' → Actually: {does}")
+            if punchline:
+                lines.append(f"  ({punchline})")
+        lines.append("")
+
+    # Roasts - affectionate teasing material
+    if evidence.roasts:
+        lines.append("### Roast Material")
+        lines.append("These are affectionate roasts they'd laugh at themselves about. Great for awards with some bite:")
+        for r in evidence.roasts:
+            person = r.get("person", "?")
+            roast = r.get("roast", "")
+            ev = r.get("evidence", "")
+            lines.append(f"- **{person}**: {roast}")
+            if ev:
+                lines.append(f"  Evidence: {ev}")
+        lines.append("")
+
     # Award ideas from Haiku - ALL of them for Sonnet to pick from
     if evidence.award_ideas:
         lines.append("### Suggested Award Ideas (from analysis)")

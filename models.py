@@ -255,12 +255,18 @@ class EvidencePacket:
     style_notes: dict[str, list[str]]  # {person: [observations]}
     award_ideas: list[dict[str, Any]]  # {"title", "recipient", "evidence"}
     conversation_snippets: list[dict[str, Any]] = None  # {"context", "exchange": [{"sender", "text"}], "punchline"}
+    contradictions: list[dict[str, Any]] = None  # {"person", "says", "does", "punchline"}
+    roasts: list[dict[str, Any]] = None  # {"person", "roast", "evidence"}
     chunk_start_idx: int = 0  # Start message index in original conversation
     chunk_end_idx: int = 0  # End message index in original conversation
 
     def __post_init__(self):
         if self.conversation_snippets is None:
             self.conversation_snippets = []
+        if self.contradictions is None:
+            self.contradictions = []
+        if self.roasts is None:
+            self.roasts = []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -272,6 +278,8 @@ class EvidencePacket:
             "style_notes": self.style_notes,
             "award_ideas": self.award_ideas,
             "conversation_snippets": self.conversation_snippets,
+            "contradictions": self.contradictions,
+            "roasts": self.roasts,
             "chunk_start_idx": self.chunk_start_idx,
             "chunk_end_idx": self.chunk_end_idx,
         }
@@ -288,10 +296,16 @@ class ConversationEvidence:
     style_notes: dict[str, list[str]]
     award_ideas: list[dict[str, Any]]
     conversation_snippets: list[dict[str, Any]] = None  # {"context", "exchange", "punchline"}
+    contradictions: list[dict[str, Any]] = None  # {"person", "says", "does", "punchline"}
+    roasts: list[dict[str, Any]] = None  # {"person", "roast", "evidence"}
 
     def __post_init__(self):
         if self.conversation_snippets is None:
             self.conversation_snippets = []
+        if self.contradictions is None:
+            self.contradictions = []
+        if self.roasts is None:
+            self.roasts = []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -303,6 +317,8 @@ class ConversationEvidence:
             "style_notes": self.style_notes,
             "award_ideas": self.award_ideas,
             "conversation_snippets": self.conversation_snippets,
+            "contradictions": self.contradictions,
+            "roasts": self.roasts,
         }
 
 

@@ -26,12 +26,20 @@ class ChunkResult:
     raw_data: Optional[dict] = None
 
 
+# Token limits for evidence gathering - start higher, retry with more if truncated
+INITIAL_MAX_TOKENS = 4096
+RETRY_MAX_TOKENS = 6144
+
+
 def gather_evidence_from_chunk(
     chunk: ConversationChunk,
     provider: LLMProvider,
     chunk_index: int = 0,
 ) -> ChunkResult:
     """Extract evidence from a single conversation chunk.
+
+    Includes retry logic for JSON truncation errors - if the response
+    gets cut off, retry with higher max_tokens.
 
     Args:
         chunk: Conversation chunk to process
@@ -43,11 +51,30 @@ def gather_evidence_from_chunk(
     """
     prompt = build_haiku_prompt(chunk)
 
+    # Try with initial token limit
+    result = _try_gather_evidence(prompt, provider, chunk, chunk_index, INITIAL_MAX_TOKENS)
+
+    # If JSON parsing failed (likely truncation), retry with higher limit
+    if result.error and ("Unterminated string" in result.error or "Expecting" in result.error):
+        logger.info(f"Chunk {chunk_index}: JSON truncated, retrying with higher token limit...")
+        result = _try_gather_evidence(prompt, provider, chunk, chunk_index, RETRY_MAX_TOKENS)
+
+    return result
+
+
+def _try_gather_evidence(
+    prompt: str,
+    provider: LLMProvider,
+    chunk: ConversationChunk,
+    chunk_index: int,
+    max_tokens: int,
+) -> ChunkResult:
+    """Try to gather evidence with specified token limit."""
     try:
         data, response = provider.complete_json(
             prompt=prompt,
             system=HAIKU_SYSTEM_PROMPT,
-            max_tokens=2048,
+            max_tokens=max_tokens,
         )
 
         # Parse and validate the response
@@ -222,6 +249,8 @@ def _parse_evidence_response(
         style_notes=_safe_dict_of_lists(data.get("style_notes")),
         award_ideas=_safe_list(data.get("award_ideas")),
         conversation_snippets=_safe_snippets(data.get("conversation_snippets")),
+        contradictions=_safe_contradictions(data.get("contradictions")),
+        roasts=_safe_list(data.get("roasts")),
         chunk_start_idx=start_idx,
         chunk_end_idx=end_idx,
     )
@@ -237,6 +266,8 @@ def _create_empty_packet(start_idx: int, end_idx: int) -> EvidencePacket:
         style_notes={},
         award_ideas=[],
         conversation_snippets=[],
+        contradictions=[],
+        roasts=[],
         chunk_start_idx=start_idx,
         chunk_end_idx=end_idx,
     )
@@ -313,5 +344,41 @@ def _safe_snippets(value: Any) -> list[dict[str, Any]]:
                 "exchange": valid_messages,
                 "punchline": str(punchline) if punchline else "",
             })
+
+    return result
+
+
+def _safe_contradictions(value: Any) -> list[dict[str, Any]]:
+    """Safely convert value to list of contradictions.
+
+    Each contradiction should have:
+    - person: str
+    - says: str (what they claimed)
+    - does: str (what they actually did)
+    - punchline: str (why it's funny)
+    """
+    if not isinstance(value, list):
+        return []
+
+    result = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+
+        person = item.get("person", "")
+        says = item.get("says", "")
+        does = item.get("does", "")
+        punchline = item.get("punchline", "")
+
+        # Must have person, says, and does
+        if not person or not says or not does:
+            continue
+
+        result.append({
+            "person": str(person),
+            "says": str(says),
+            "does": str(does),
+            "punchline": str(punchline) if punchline else "",
+        })
 
     return result

@@ -23,7 +23,7 @@ from models import (
 )
 from analysis.pattern_detection import detect_all_patterns
 from llm.providers import AnthropicProvider, HAIKU_MODEL, SONNET_MODEL
-from llm.evidence import chunk_conversation, gather_all_evidence, aggregate_evidence
+from llm.evidence import chunk_conversation, gather_all_evidence, aggregate_evidence, filter_evidence_by_quality
 from llm.synthesis import build_synthesis_prompt, select_sample_messages, generate_awards
 from llm.logging import SessionLogger, set_logger
 from exceptions import ProviderError, EvidenceError, SynthesisError
@@ -139,6 +139,8 @@ def generate_unwrapped(
         all_funny=[f for p in packets for f in p.funny_moments],
         all_awards=[a for p in packets for a in p.award_ideas],
         all_snippets=[s for p in packets for s in p.conversation_snippets],
+        all_contradictions=[c for p in packets for c in p.contradictions],
+        all_roasts=[r for p in packets for r in p.roasts],
     )
 
     evidence = aggregate_evidence(packets)
@@ -146,6 +148,18 @@ def generate_unwrapped(
 
     # Log post-aggregation data
     session_logger.log_post_aggregation(evidence)
+
+    # Quality filter: Have Haiku judge the evidence
+    _progress(PipelineStage.EVIDENCE, "Filtering evidence by quality...")
+    evidence, filter_input, filter_output = filter_evidence_by_quality(
+        evidence, haiku_provider
+    )
+    total_input_tokens += filter_input
+    total_output_tokens += filter_output
+    logger.info(f"Quality filter: {len(evidence.notable_quotes)} quotes, {len(evidence.inside_jokes)} jokes")
+
+    # Log post-filter data
+    session_logger.log_quality_filter(evidence)
 
     # Pass 2: Award synthesis with Sonnet
     _progress(PipelineStage.SYNTHESIS, "Generating awards with Sonnet...")
