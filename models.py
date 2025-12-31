@@ -315,6 +315,7 @@ class UnwrappedResult:
 
     awards: list[Award]
     patterns_used: list[DetectedPattern]
+    evidence: Optional[ConversationEvidence]  # Qualitative insights from Haiku
     model_used: str  # "offline", "haiku+sonnet", etc.
     input_tokens: int
     output_tokens: int
@@ -326,6 +327,7 @@ class UnwrappedResult:
         return {
             "awards": [a.to_dict() for a in self.awards],
             "patterns_used": [p.to_dict() for p in self.patterns_used],
+            "evidence": self.evidence.to_dict() if self.evidence else None,
             "model_used": self.model_used,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
