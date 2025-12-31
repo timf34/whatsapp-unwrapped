@@ -254,8 +254,13 @@ class EvidencePacket:
     funny_moments: list[dict[str, Any]]  # {"description"}
     style_notes: dict[str, list[str]]  # {person: [observations]}
     award_ideas: list[dict[str, Any]]  # {"title", "recipient", "evidence"}
+    conversation_snippets: list[dict[str, Any]] = None  # {"context", "exchange": [{"sender", "text"}], "punchline"}
     chunk_start_idx: int = 0  # Start message index in original conversation
     chunk_end_idx: int = 0  # End message index in original conversation
+
+    def __post_init__(self):
+        if self.conversation_snippets is None:
+            self.conversation_snippets = []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -266,6 +271,7 @@ class EvidencePacket:
             "funny_moments": self.funny_moments,
             "style_notes": self.style_notes,
             "award_ideas": self.award_ideas,
+            "conversation_snippets": self.conversation_snippets,
             "chunk_start_idx": self.chunk_start_idx,
             "chunk_end_idx": self.chunk_end_idx,
         }
@@ -281,6 +287,11 @@ class ConversationEvidence:
     funny_moments: list[dict[str, Any]]
     style_notes: dict[str, list[str]]
     award_ideas: list[dict[str, Any]]
+    conversation_snippets: list[dict[str, Any]] = None  # {"context", "exchange", "punchline"}
+
+    def __post_init__(self):
+        if self.conversation_snippets is None:
+            self.conversation_snippets = []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -291,6 +302,7 @@ class ConversationEvidence:
             "funny_moments": self.funny_moments,
             "style_notes": self.style_notes,
             "award_ideas": self.award_ideas,
+            "conversation_snippets": self.conversation_snippets,
         }
 
 

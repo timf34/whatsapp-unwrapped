@@ -85,6 +85,7 @@ class SessionLogger:
             "funny_moments": packet.funny_moments,
             "style_notes": packet.style_notes,
             "award_ideas": packet.award_ideas,
+            "conversation_snippets": packet.conversation_snippets,
         }
 
         if raw_response:
@@ -103,10 +104,14 @@ class SessionLogger:
         all_dynamics: list,
         all_funny: list,
         all_awards: list,
+        all_snippets: list = None,
     ) -> None:
         """Log all evidence before aggregation/deduplication."""
         if not self.enabled:
             return
+
+        if all_snippets is None:
+            all_snippets = []
 
         pre_agg = {
             "stage": "pre_aggregation",
@@ -116,12 +121,14 @@ class SessionLogger:
                 "dynamics": len(all_dynamics),
                 "funny_moments": len(all_funny),
                 "award_ideas": len(all_awards),
+                "snippets": len(all_snippets),
             },
             "all_quotes": all_quotes,
             "all_jokes": all_jokes,
             "all_dynamics": all_dynamics,
             "all_funny_moments": all_funny,
             "all_award_ideas": all_awards,
+            "all_snippets": all_snippets,
         }
 
         self._write_json(pre_agg, self.session_dir / "pre_aggregation.json")
@@ -139,6 +146,7 @@ class SessionLogger:
                 "dynamics": len(evidence.dynamics),
                 "funny_moments": len(evidence.funny_moments),
                 "award_ideas": len(evidence.award_ideas),
+                "snippets": len(evidence.conversation_snippets),
             },
             "evidence": evidence.to_dict(),
         }

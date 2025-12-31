@@ -210,6 +210,23 @@ def _format_evidence(evidence: ConversationEvidence) -> str:
                 lines.append(f"- {note}")
         lines.append("")
 
+    # Conversation snippets - these show the actual back-and-forth
+    if evidence.conversation_snippets:
+        lines.append("### Conversation Snippets (actual exchanges)")
+        lines.append("These show the back-and-forth that makes moments funny. Use these for context and specific quotes:")
+        for snippet in evidence.conversation_snippets:
+            context = snippet.get("context", "?")
+            exchange = snippet.get("exchange", [])
+            punchline = snippet.get("punchline", "")
+            lines.append(f"\n**{context}**")
+            for msg in exchange:
+                sender = msg.get("sender", "?")
+                text = msg.get("text", "?")
+                lines.append(f"  {sender}: {text}")
+            if punchline:
+                lines.append(f"  → {punchline}")
+        lines.append("")
+
     # Award ideas from Haiku - ALL of them for Sonnet to pick from
     if evidence.award_ideas:
         lines.append("### Suggested Award Ideas (from analysis)")

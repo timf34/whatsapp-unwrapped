@@ -221,6 +221,7 @@ def _parse_evidence_response(
         funny_moments=_safe_list(data.get("funny_moments")),
         style_notes=_safe_dict_of_lists(data.get("style_notes")),
         award_ideas=_safe_list(data.get("award_ideas")),
+        conversation_snippets=_safe_snippets(data.get("conversation_snippets")),
         chunk_start_idx=start_idx,
         chunk_end_idx=end_idx,
     )
@@ -235,6 +236,7 @@ def _create_empty_packet(start_idx: int, end_idx: int) -> EvidencePacket:
         funny_moments=[],
         style_notes={},
         award_ideas=[],
+        conversation_snippets=[],
         chunk_start_idx=start_idx,
         chunk_end_idx=end_idx,
     )
@@ -264,4 +266,52 @@ def _safe_dict_of_lists(value: Any) -> dict[str, list[str]]:
             result[str(key)] = [str(v) for v in val if v]
         elif val:
             result[str(key)] = [str(val)]
+    return result
+
+
+def _safe_snippets(value: Any) -> list[dict[str, Any]]:
+    """Safely convert value to list of conversation snippets.
+
+    Each snippet should have:
+    - context: str (brief setup)
+    - exchange: list of {"sender": str, "text": str}
+    - punchline: str (why it's funny)
+    """
+    if not isinstance(value, list):
+        return []
+
+    result = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+
+        # Validate snippet structure
+        context = item.get("context", "")
+        exchange = item.get("exchange", [])
+        punchline = item.get("punchline", "")
+
+        # Must have at least context and some exchange
+        if not context or not exchange:
+            continue
+
+        # Validate exchange is a list of message dicts
+        if not isinstance(exchange, list):
+            continue
+
+        valid_messages = []
+        for msg in exchange:
+            if isinstance(msg, dict) and msg.get("sender") and msg.get("text"):
+                valid_messages.append({
+                    "sender": str(msg["sender"]),
+                    "text": str(msg["text"]),
+                })
+
+        # Need at least 2 messages for it to be an exchange
+        if len(valid_messages) >= 2:
+            result.append({
+                "context": str(context),
+                "exchange": valid_messages,
+                "punchline": str(punchline) if punchline else "",
+            })
+
     return result

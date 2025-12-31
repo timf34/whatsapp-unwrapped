@@ -15,6 +15,7 @@ MAX_DYNAMICS = 15
 MAX_FUNNY_MOMENTS = 20
 MAX_STYLE_NOTES_PER_PERSON = 8
 MAX_AWARD_IDEAS = 30
+MAX_SNIPPETS = 15  # Conversation snippets are valuable context
 
 # Similarity threshold for deduplication
 SIMILARITY_THRESHOLD = 0.8
@@ -41,6 +42,7 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     dynamics_with_idx: list[tuple[int, str]] = []
     funny_with_idx: list[tuple[int, dict]] = []
     awards_with_idx: list[tuple[int, dict]] = []
+    snippets_with_idx: list[tuple[int, dict]] = []
     all_style_notes: dict[str, list[str]] = defaultdict(list)
 
     for chunk_idx, packet in enumerate(packets):
@@ -54,6 +56,8 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
             funny_with_idx.append((chunk_idx, item))
         for item in packet.award_ideas:
             awards_with_idx.append((chunk_idx, item))
+        for item in packet.conversation_snippets:
+            snippets_with_idx.append((chunk_idx, item))
 
         for person, notes in packet.style_notes.items():
             all_style_notes[person].extend(notes)
@@ -64,6 +68,7 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     sampled_dynamics = _temporal_sample(dynamics_with_idx, MAX_DYNAMICS * 2)
     sampled_funny = _temporal_sample(funny_with_idx, MAX_FUNNY_MOMENTS * 2)
     sampled_awards = _temporal_sample(awards_with_idx, MAX_AWARD_IDEAS * 2)
+    sampled_snippets = _temporal_sample(snippets_with_idx, MAX_SNIPPETS * 2)
 
     # Deduplicate and rank (now working on temporally diverse sample)
     deduped_quotes = _deduplicate_quotes(sampled_quotes)[:MAX_QUOTES]
@@ -72,6 +77,7 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     deduped_funny = _deduplicate_by_field(sampled_funny, "description")[:MAX_FUNNY_MOMENTS]
     merged_style = _merge_style_notes(all_style_notes)
     ranked_awards = _rank_award_ideas(sampled_awards)[:MAX_AWARD_IDEAS]
+    deduped_snippets = _deduplicate_snippets(sampled_snippets)[:MAX_SNIPPETS]
 
     return ConversationEvidence(
         notable_quotes=deduped_quotes,
@@ -80,6 +86,7 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
         funny_moments=deduped_funny,
         style_notes=merged_style,
         award_ideas=ranked_awards,
+        conversation_snippets=deduped_snippets,
     )
 
 
@@ -137,6 +144,7 @@ def _create_empty_evidence() -> ConversationEvidence:
         funny_moments=[],
         style_notes={},
         award_ideas=[],
+        conversation_snippets=[],
     )
 
 
@@ -272,3 +280,28 @@ def _rank_award_ideas(awards: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     # Could add more sophisticated ranking here (e.g., by evidence quality)
     return deduped
+
+
+def _deduplicate_snippets(snippets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate conversation snippets by similar context."""
+    if not snippets:
+        return []
+
+    result = []
+    for snippet in snippets:
+        context = snippet.get("context", "")
+        if not context:
+            continue
+
+        # Check if similar snippet already exists
+        is_duplicate = False
+        for existing in result:
+            existing_context = existing.get("context", "")
+            if _similarity(context, existing_context) > SIMILARITY_THRESHOLD:
+                is_duplicate = True
+                break
+
+        if not is_duplicate:
+            result.append(snippet)
+
+    return result

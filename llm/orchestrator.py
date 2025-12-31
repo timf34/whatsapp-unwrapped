@@ -138,6 +138,7 @@ def generate_unwrapped(
         all_dynamics=[d for p in packets for d in p.dynamics],
         all_funny=[f for p in packets for f in p.funny_moments],
         all_awards=[a for p in packets for a in p.award_ideas],
+        all_snippets=[s for p in packets for s in p.conversation_snippets],
     )
 
     evidence = aggregate_evidence(packets)

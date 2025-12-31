@@ -96,8 +96,26 @@ Return JSON (include empty arrays if nothing genuinely notable):
   }},
   "award_ideas": [
     {{"title": "Catchy 3-6 Word Title", "recipient": "Name", "evidence": "the specific thing that proves it"}}
+  ],
+  "conversation_snippets": [
+    {{
+      "context": "brief setup (e.g. 'Tim asks ChatGPT for plant advice')",
+      "exchange": [
+        {{"sender": "Name", "text": "exact message 1"}},
+        {{"sender": "Name", "text": "exact message 2"}},
+        {{"sender": "Name", "text": "exact message 3"}}
+      ],
+      "punchline": "why this exchange is gold"
+    }}
   ]
 }}
+
+ABOUT conversation_snippets:
+- Use these when the BACK-AND-FORTH is what makes it funny, not just one quote
+- 2-5 messages that form a complete comedic beat
+- The exchange should make sense when read as a thread
+- Only include when there's genuine banter/dynamic worth preserving
+- Most chunks won't have any - that's fine! Only capture truly good exchanges.
 
 EXAMPLES of good punchlines:
 - "Persistent campaign to convert boyfriend to Juicy Couture"
@@ -110,7 +128,7 @@ EXAMPLES of bad (too explanatory):
 - "Shows concern for plant health"
 - "Tends to greet late in the day"
 
-Max 3 items per category. Only include genuinely funny/notable things."""
+Max 3 items per category (except conversation_snippets: max 2). Only include genuinely funny/notable things."""
 
 
 def get_evidence_schema_description() -> str:
@@ -123,4 +141,5 @@ Evidence Schema:
 - funny_moments: Anything that would make someone smile
 - style_notes: How each person texts (per person)
 - award_ideas: Suggested awards with specific evidence
+- conversation_snippets: Mini-exchanges (2-5 messages) where the back-and-forth IS the humor
 """
