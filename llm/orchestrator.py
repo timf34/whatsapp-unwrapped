@@ -25,6 +25,7 @@ from analysis.pattern_detection import detect_all_patterns
 from llm.providers import AnthropicProvider, HAIKU_MODEL, SONNET_MODEL
 from llm.evidence import chunk_conversation, gather_all_evidence, aggregate_evidence
 from llm.synthesis import build_synthesis_prompt, select_sample_messages, generate_awards
+from llm.logging import SessionLogger, set_logger
 from exceptions import ProviderError, EvidenceError, SynthesisError
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def generate_unwrapped(
     stats: Statistics,
     api_key: Optional[str] = None,
     progress_callback: Optional[ProgressCallback] = None,
+    enable_logging: bool = True,
 ) -> UnwrappedResult:
     """Generate Unwrapped awards using the full pipeline.
 
@@ -70,6 +72,7 @@ def generate_unwrapped(
         stats: Computed statistics
         api_key: Anthropic API key (falls back to env var)
         progress_callback: Optional callback for progress updates
+        enable_logging: Whether to save debug logs to logs/ directory
 
     Returns:
         UnwrappedResult with awards, patterns, evidence, and metadata
@@ -84,6 +87,12 @@ def generate_unwrapped(
     participants = list(stats.basic.messages_per_person.keys())
     total_input_tokens = 0
     total_output_tokens = 0
+
+    # Initialize session logger
+    session_logger = SessionLogger(enabled=enable_logging)
+    set_logger(session_logger)  # Make available globally for terminal output logging
+    if session_logger.log_path:
+        logger.info(f"Session logs: {session_logger.log_path}")
 
     # Pass 0: Pattern detection
     _progress(PipelineStage.PATTERNS, "Detecting behavioral patterns...")
@@ -103,25 +112,44 @@ def generate_unwrapped(
     chunks = chunk_conversation(conversation)
     logger.info(f"Created {len(chunks)} chunks")
 
+    # Log session start
+    session_logger.log_session_start(
+        total_messages=len(conversation.messages),
+        total_chunks=len(chunks),
+        participants=participants,
+    )
+
     _progress(PipelineStage.EVIDENCE, "Gathering evidence with Haiku...", 0, len(chunks))
 
     def chunk_progress(current: int, total: int):
         _progress(PipelineStage.EVIDENCE, f"Processing chunk {current}/{total}...", current, total)
 
     packets, haiku_input, haiku_output = gather_all_evidence(
-        chunks, haiku_provider, chunk_progress
+        chunks, haiku_provider, chunk_progress, session_logger=session_logger
     )
     total_input_tokens += haiku_input
     total_output_tokens += haiku_output
     logger.info(f"Gathered {len(packets)} evidence packets")
 
+    # Log pre-aggregation data
+    session_logger.log_pre_aggregation(
+        all_quotes=[q for p in packets for q in p.notable_quotes],
+        all_jokes=[j for p in packets for j in p.inside_jokes],
+        all_dynamics=[d for p in packets for d in p.dynamics],
+        all_funny=[f for p in packets for f in p.funny_moments],
+        all_awards=[a for p in packets for a in p.award_ideas],
+    )
+
     evidence = aggregate_evidence(packets)
     logger.info(f"Aggregated: {len(evidence.notable_quotes)} quotes, {len(evidence.inside_jokes)} jokes")
+
+    # Log post-aggregation data
+    session_logger.log_post_aggregation(evidence)
 
     # Pass 2: Award synthesis with Sonnet
     _progress(PipelineStage.SYNTHESIS, "Generating awards with Sonnet...")
 
-    sample_messages = select_sample_messages(conversation, count=15)
+    sample_messages = select_sample_messages(conversation, count=50)
     prompt = build_synthesis_prompt(
         stats=stats,
         patterns=patterns,
@@ -129,6 +157,9 @@ def generate_unwrapped(
         sample_messages=sample_messages,
         participants=participants,
     )
+
+    # Log the prompt sent to Sonnet
+    session_logger.log_sonnet_prompt(prompt)
 
     awards, response, sonnet_input, sonnet_output = generate_awards(
         prompt=prompt,
@@ -139,9 +170,12 @@ def generate_unwrapped(
     total_input_tokens += sonnet_input
     total_output_tokens += sonnet_output
 
+    # Log Sonnet response
+    session_logger.log_sonnet_response(response or {}, awards)
+
     _progress(PipelineStage.COMPLETE, "Done!")
 
-    return UnwrappedResult(
+    result = UnwrappedResult(
         awards=awards,
         patterns_used=patterns,
         evidence=evidence,
@@ -150,6 +184,11 @@ def generate_unwrapped(
         output_tokens=total_output_tokens,
         success=True,
     )
+
+    # Log final result
+    session_logger.log_final_result(result)
+
+    return result
 
 
 def generate_unwrapped_offline(
@@ -194,6 +233,7 @@ def generate_unwrapped_with_fallback(
     api_key: Optional[str] = None,
     offline: bool = False,
     progress_callback: Optional[ProgressCallback] = None,
+    enable_logging: bool = True,
 ) -> UnwrappedResult:
     """Generate Unwrapped with graceful fallback on errors.
 
@@ -208,6 +248,7 @@ def generate_unwrapped_with_fallback(
         api_key: Anthropic API key (falls back to env var)
         offline: Force offline mode
         progress_callback: Optional callback for progress updates
+        enable_logging: Whether to save debug logs to logs/ directory
 
     Returns:
         UnwrappedResult - always succeeds, may have degraded output
@@ -236,6 +277,7 @@ def generate_unwrapped_with_fallback(
             stats=stats,
             api_key=api_key,
             progress_callback=progress_callback,
+            enable_logging=enable_logging,
         )
     except ProviderError as e:
         logger.error(f"Provider error: {e}")
@@ -294,7 +336,7 @@ def _generate_without_evidence(
 
         _progress(PipelineStage.SYNTHESIS, "Generating awards (without evidence)...")
 
-        sample_messages = select_sample_messages(conversation, count=15)
+        sample_messages = select_sample_messages(conversation, count=50)
         prompt = build_synthesis_prompt(
             stats=stats,
             patterns=patterns,

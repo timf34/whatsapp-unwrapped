@@ -1,7 +1,11 @@
 """Evidence gathering using Haiku LLM."""
 
 import logging
-from typing import Any, Callable
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from threading import Lock
+from typing import Any, Callable, Optional
 
 from exceptions import EvidenceError
 from llm.evidence.chunking import ConversationChunk
@@ -12,21 +16,30 @@ from models import EvidencePacket
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ChunkResult:
+    """Result from processing a single chunk."""
+    chunk_index: int
+    packet: Optional[EvidencePacket]
+    response: Optional[LLMResponse]
+    error: Optional[str]
+    raw_data: Optional[dict] = None
+
+
 def gather_evidence_from_chunk(
     chunk: ConversationChunk,
     provider: LLMProvider,
-) -> tuple[EvidencePacket, LLMResponse]:
+    chunk_index: int = 0,
+) -> ChunkResult:
     """Extract evidence from a single conversation chunk.
 
     Args:
         chunk: Conversation chunk to process
         provider: LLM provider (should be Haiku)
+        chunk_index: Index of this chunk (for logging)
 
     Returns:
-        Tuple of (EvidencePacket, LLMResponse)
-
-    Raises:
-        EvidenceError: If extraction or parsing fails
+        ChunkResult with packet or error
     """
     prompt = build_haiku_prompt(chunk)
 
@@ -36,46 +49,79 @@ def gather_evidence_from_chunk(
             system=HAIKU_SYSTEM_PROMPT,
             max_tokens=2048,
         )
+
+        # Parse and validate the response
+        packet = _parse_evidence_response(data, chunk.start_idx, chunk.end_idx)
+
+        return ChunkResult(
+            chunk_index=chunk_index,
+            packet=packet,
+            response=response,
+            error=None,
+            raw_data=data,
+        )
+
     except Exception as e:
-        raise EvidenceError(f"Failed to get evidence from LLM: {e}")
-
-    # Parse and validate the response
-    packet = _parse_evidence_response(data)
-
-    return packet, response
+        return ChunkResult(
+            chunk_index=chunk_index,
+            packet=None,
+            response=None,
+            error=str(e),
+        )
 
 
 def gather_all_evidence(
     chunks: list[ConversationChunk],
     provider: LLMProvider,
     progress_callback: Callable[[int, int], None] | None = None,
+    max_workers: int = 5,
+    session_logger: Optional[Any] = None,
 ) -> tuple[list[EvidencePacket], int, int]:
-    """Process all chunks and gather evidence.
+    """Process all chunks and gather evidence with parallel processing.
 
     Args:
         chunks: All conversation chunks
         provider: LLM provider (should be Haiku)
         progress_callback: Optional callback for progress updates (current, total)
+        max_workers: Maximum parallel requests (default 5 to respect rate limits)
+        session_logger: Optional SessionLogger for debugging
 
     Returns:
         Tuple of (list of EvidencePackets, total input tokens, total output tokens)
     """
+    if len(chunks) <= 3:
+        # For small numbers, process sequentially
+        return _gather_sequential(chunks, provider, progress_callback, session_logger)
+
+    return _gather_parallel(chunks, provider, progress_callback, max_workers, session_logger)
+
+
+def _gather_sequential(
+    chunks: list[ConversationChunk],
+    provider: LLMProvider,
+    progress_callback: Callable[[int, int], None] | None,
+    session_logger: Optional[Any],
+) -> tuple[list[EvidencePacket], int, int]:
+    """Process chunks sequentially (for small numbers)."""
     packets: list[EvidencePacket] = []
     total_input_tokens = 0
     total_output_tokens = 0
 
     for i, chunk in enumerate(chunks):
-        try:
-            packet, response = gather_evidence_from_chunk(chunk, provider)
-            packets.append(packet)
-            total_input_tokens += response.input_tokens
-            total_output_tokens += response.output_tokens
+        result = gather_evidence_from_chunk(chunk, provider, i)
 
-        except EvidenceError as e:
-            # Log warning but continue with other chunks
-            logger.warning(f"Failed to process chunk {i + 1}/{len(chunks)}: {e}")
-            # Add empty packet to maintain chunk correspondence
-            packets.append(_create_empty_packet())
+        if result.packet:
+            packets.append(result.packet)
+            if result.response:
+                total_input_tokens += result.response.input_tokens
+                total_output_tokens += result.response.output_tokens
+
+            # Log to session
+            if session_logger:
+                session_logger.log_chunk_evidence(i, result.packet, result.raw_data)
+        else:
+            logger.warning(f"Failed to process chunk {i + 1}/{len(chunks)}: {result.error}")
+            packets.append(_create_empty_packet(chunk.start_idx, chunk.end_idx))
 
         if progress_callback:
             progress_callback(i + 1, len(chunks))
@@ -83,11 +129,87 @@ def gather_all_evidence(
     return packets, total_input_tokens, total_output_tokens
 
 
-def _parse_evidence_response(data: dict[str, Any]) -> EvidencePacket:
+def _gather_parallel(
+    chunks: list[ConversationChunk],
+    provider: LLMProvider,
+    progress_callback: Callable[[int, int], None] | None,
+    max_workers: int,
+    session_logger: Optional[Any],
+) -> tuple[list[EvidencePacket], int, int]:
+    """Process chunks in parallel with rate limiting."""
+
+    results: dict[int, ChunkResult] = {}
+    total_input_tokens = 0
+    total_output_tokens = 0
+    completed_count = 0
+    count_lock = Lock()
+
+    def process_chunk(chunk_data: tuple[int, ConversationChunk]) -> ChunkResult:
+        idx, chunk = chunk_data
+        return gather_evidence_from_chunk(chunk, provider, idx)
+
+    # Process in parallel with limited workers
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_idx = {
+            executor.submit(process_chunk, (i, chunk)): i
+            for i, chunk in enumerate(chunks)
+        }
+
+        # Process results as they complete
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+
+            try:
+                result = future.result()
+                results[idx] = result
+
+                if result.response:
+                    with count_lock:
+                        total_input_tokens += result.response.input_tokens
+                        total_output_tokens += result.response.output_tokens
+
+            except Exception as e:
+                results[idx] = ChunkResult(
+                    chunk_index=idx,
+                    packet=None,
+                    response=None,
+                    error=str(e),
+                )
+
+            # Update progress
+            with count_lock:
+                completed_count += 1
+                if progress_callback:
+                    progress_callback(completed_count, len(chunks))
+
+    # Build ordered packet list
+    packets: list[EvidencePacket] = []
+    for i in range(len(chunks)):
+        result = results.get(i)
+        if result and result.packet:
+            packets.append(result.packet)
+            if session_logger:
+                session_logger.log_chunk_evidence(i, result.packet, result.raw_data)
+        else:
+            error = result.error if result else "Unknown error"
+            logger.warning(f"Failed to process chunk {i + 1}/{len(chunks)}: {error}")
+            packets.append(_create_empty_packet(chunks[i].start_idx, chunks[i].end_idx))
+
+    return packets, total_input_tokens, total_output_tokens
+
+
+def _parse_evidence_response(
+    data: dict[str, Any],
+    start_idx: int,
+    end_idx: int,
+) -> EvidencePacket:
     """Parse LLM response into EvidencePacket.
 
     Args:
         data: Parsed JSON from LLM
+        start_idx: Start message index in original conversation
+        end_idx: End message index in original conversation
 
     Returns:
         EvidencePacket with validated data
@@ -99,11 +221,13 @@ def _parse_evidence_response(data: dict[str, Any]) -> EvidencePacket:
         funny_moments=_safe_list(data.get("funny_moments")),
         style_notes=_safe_dict_of_lists(data.get("style_notes")),
         award_ideas=_safe_list(data.get("award_ideas")),
+        chunk_start_idx=start_idx,
+        chunk_end_idx=end_idx,
     )
 
 
-def _create_empty_packet() -> EvidencePacket:
-    """Create an empty evidence packet."""
+def _create_empty_packet(start_idx: int, end_idx: int) -> EvidencePacket:
+    """Create an empty evidence packet for a chunk that failed processing."""
     return EvidencePacket(
         notable_quotes=[],
         inside_jokes=[],
@@ -111,6 +235,8 @@ def _create_empty_packet() -> EvidencePacket:
         funny_moments=[],
         style_notes={},
         award_ideas=[],
+        chunk_start_idx=start_idx,
+        chunk_end_idx=end_idx,
     )
 
 

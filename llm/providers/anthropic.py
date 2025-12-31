@@ -8,6 +8,7 @@ from exceptions import ProviderError
 from llm.providers.base import LLMProvider, LLMResponse
 
 # Model constants
+# HAIKU_MODEL = "claude-3-haiku-20240307"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 SONNET_MODEL = "claude-sonnet-4-5-20250929"
 

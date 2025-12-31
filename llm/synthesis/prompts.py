@@ -31,12 +31,13 @@ DESIGN PRINCIPLES (non-negotiable):
    The recognition of shared quirks is the whole point.
 
 CONSTRAINTS:
-- Generate exactly 6 awards
+- Generate exactly 10 awards (people want to read about their relationship!)
 - Each award must have: title (3-8 words), recipient, evidence, quip (max 15 words)
-- Balance between participants (aim for 3 each, acceptable range: 2-4 each)
+- Balance between participants (aim for 5 each, acceptable range: 4-6 each)
 - Evidence must be SPECIFIC (numbers, quotes, incidents) but also FUN TO READ
 - Evidence should tell a mini-story, not dump stats. Make people smile.
 - Awards must be things you couldn't say about just anyone
+- Prioritize the funniest and most specific award ideas from the evidence provided
 
 BAD evidence: "Sent 3+ messages 45 times. Longest streak: 4 messages including '<Media omitted>'"
 GOOD evidence: "The enter key is merely a suggestion - 45 bursts of rapid-fire thoughts before waiting for a response"
@@ -128,9 +129,9 @@ def get_retry_prompt(issues: list[str]) -> str:
 
 {issues_str}
 
-Please regenerate the 6 awards, fixing these issues. Remember:
+Please regenerate the 10 awards, fixing these issues. Remember:
 - Each award needs specific, numerical or quoted evidence
-- Balance awards between participants (aim for 3 each)
+- Balance awards between participants (aim for 5 each)
 - Keep quips under 15 words
 - Be celebratory, not critical
 

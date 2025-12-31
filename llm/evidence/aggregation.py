@@ -1,5 +1,6 @@
 """Evidence aggregation across chunks."""
 
+import random
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 from typing import Any
@@ -7,13 +8,13 @@ from typing import Any
 from models import ConversationEvidence, EvidencePacket
 
 
-# Aggregation limits
-MAX_QUOTES = 15
-MAX_INSIDE_JOKES = 10
-MAX_DYNAMICS = 10
-MAX_FUNNY_MOMENTS = 10
-MAX_STYLE_NOTES_PER_PERSON = 5
-MAX_AWARD_IDEAS = 15
+# Aggregation limits - generous to capture the full conversation
+MAX_QUOTES = 30
+MAX_INSIDE_JOKES = 20
+MAX_DYNAMICS = 15
+MAX_FUNNY_MOMENTS = 20
+MAX_STYLE_NOTES_PER_PERSON = 8
+MAX_AWARD_IDEAS = 30
 
 # Similarity threshold for deduplication
 SIMILARITY_THRESHOLD = 0.8
@@ -22,8 +23,8 @@ SIMILARITY_THRESHOLD = 0.8
 def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     """Aggregate evidence packets into unified evidence.
 
-    Deduplicates similar items, ranks by frequency/importance,
-    and caps each category to prevent prompt bloat.
+    Uses temporal-aware sampling to get diverse evidence from across the
+    conversation, then deduplicates similar items.
 
     Args:
         packets: Evidence packets from all chunks
@@ -34,31 +35,43 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
     if not packets:
         return _create_empty_evidence()
 
-    # Aggregate each category
-    all_quotes = []
-    all_inside_jokes = []
-    all_dynamics = []
-    all_funny_moments = []
+    # Collect items with chunk index for temporal diversity
+    quotes_with_idx: list[tuple[int, dict]] = []
+    jokes_with_idx: list[tuple[int, dict]] = []
+    dynamics_with_idx: list[tuple[int, str]] = []
+    funny_with_idx: list[tuple[int, dict]] = []
+    awards_with_idx: list[tuple[int, dict]] = []
     all_style_notes: dict[str, list[str]] = defaultdict(list)
-    all_award_ideas = []
 
-    for packet in packets:
-        all_quotes.extend(packet.notable_quotes)
-        all_inside_jokes.extend(packet.inside_jokes)
-        all_dynamics.extend(packet.dynamics)
-        all_funny_moments.extend(packet.funny_moments)
-        all_award_ideas.extend(packet.award_ideas)
+    for chunk_idx, packet in enumerate(packets):
+        for item in packet.notable_quotes:
+            quotes_with_idx.append((chunk_idx, item))
+        for item in packet.inside_jokes:
+            jokes_with_idx.append((chunk_idx, item))
+        for item in packet.dynamics:
+            dynamics_with_idx.append((chunk_idx, item))
+        for item in packet.funny_moments:
+            funny_with_idx.append((chunk_idx, item))
+        for item in packet.award_ideas:
+            awards_with_idx.append((chunk_idx, item))
 
         for person, notes in packet.style_notes.items():
             all_style_notes[person].extend(notes)
 
-    # Deduplicate and rank
-    deduped_quotes = _deduplicate_quotes(all_quotes)[:MAX_QUOTES]
-    ranked_jokes = _rank_inside_jokes(all_inside_jokes)[:MAX_INSIDE_JOKES]
-    deduped_dynamics = _deduplicate_strings(all_dynamics)[:MAX_DYNAMICS]
-    deduped_funny = _deduplicate_by_field(all_funny_moments, "description")[:MAX_FUNNY_MOMENTS]
+    # Apply temporal-aware sampling, then deduplicate
+    sampled_quotes = _temporal_sample(quotes_with_idx, MAX_QUOTES * 2)
+    sampled_jokes = _temporal_sample(jokes_with_idx, MAX_INSIDE_JOKES * 2)
+    sampled_dynamics = _temporal_sample(dynamics_with_idx, MAX_DYNAMICS * 2)
+    sampled_funny = _temporal_sample(funny_with_idx, MAX_FUNNY_MOMENTS * 2)
+    sampled_awards = _temporal_sample(awards_with_idx, MAX_AWARD_IDEAS * 2)
+
+    # Deduplicate and rank (now working on temporally diverse sample)
+    deduped_quotes = _deduplicate_quotes(sampled_quotes)[:MAX_QUOTES]
+    ranked_jokes = _rank_inside_jokes(sampled_jokes)[:MAX_INSIDE_JOKES]
+    deduped_dynamics = _deduplicate_strings(sampled_dynamics)[:MAX_DYNAMICS]
+    deduped_funny = _deduplicate_by_field(sampled_funny, "description")[:MAX_FUNNY_MOMENTS]
     merged_style = _merge_style_notes(all_style_notes)
-    ranked_awards = _rank_award_ideas(all_award_ideas)[:MAX_AWARD_IDEAS]
+    ranked_awards = _rank_award_ideas(sampled_awards)[:MAX_AWARD_IDEAS]
 
     return ConversationEvidence(
         notable_quotes=deduped_quotes,
@@ -68,6 +81,51 @@ def aggregate_evidence(packets: list[EvidencePacket]) -> ConversationEvidence:
         style_notes=merged_style,
         award_ideas=ranked_awards,
     )
+
+
+def _temporal_sample(items_with_idx: list[tuple[int, Any]], max_count: int) -> list[Any]:
+    """Sample items evenly across chunks to maintain temporal diversity.
+
+    Divides chunks into buckets and samples evenly from each, ensuring
+    evidence from later in the conversation isn't dropped.
+
+    Args:
+        items_with_idx: List of (chunk_index, item) tuples
+        max_count: Maximum items to return
+
+    Returns:
+        Sampled items (without chunk index)
+    """
+    if not items_with_idx:
+        return []
+
+    if len(items_with_idx) <= max_count:
+        return [item for _, item in items_with_idx]
+
+    # Group by chunk index
+    by_chunk: dict[int, list[Any]] = defaultdict(list)
+    for chunk_idx, item in items_with_idx:
+        by_chunk[chunk_idx].append(item)
+
+    # Calculate items per chunk (round-robin allocation)
+    chunk_indices = sorted(by_chunk.keys())
+    num_chunks = len(chunk_indices)
+    base_per_chunk = max_count // num_chunks
+    extra = max_count % num_chunks
+
+    result = []
+    for i, chunk_idx in enumerate(chunk_indices):
+        chunk_items = by_chunk[chunk_idx]
+        # Earlier chunks get fewer, later chunks get slightly more to compensate for bias
+        take = base_per_chunk + (1 if i >= num_chunks - extra else 0)
+
+        if len(chunk_items) <= take:
+            result.extend(chunk_items)
+        else:
+            # Randomly sample from this chunk
+            result.extend(random.sample(chunk_items, take))
+
+    return result
 
 
 def _create_empty_evidence() -> ConversationEvidence:

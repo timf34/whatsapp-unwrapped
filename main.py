@@ -1,16 +1,40 @@
 """Main entry point for WhatsApp Unwrapped."""
 
 import argparse
+import io
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from analysis import run_analysis
 from exceptions import WhatsAppUnwrappedError
-from models import OutputPaths, Statistics
+from models import Conversation, OutputPaths, Statistics, UnwrappedResult
 from output import render_outputs
 from output.presentation import get_fun_facts
+from output.unwrapped import format_unwrapped
 from parser import load_chat
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class TeeOutput:
+    """Captures output while still printing to terminal."""
+
+    def __init__(self, original_stdout):
+        self.original = original_stdout
+        self.buffer = io.StringIO()
+
+    def write(self, text):
+        self.original.write(text)
+        self.buffer.write(text)
+
+    def flush(self):
+        self.original.flush()
+
+    def getvalue(self):
+        return self.buffer.getvalue()
 
 # Configure logging
 logging.basicConfig(
@@ -88,10 +112,104 @@ Examples:
         help="Only export JSON, skip visualizations",
     )
 
-    return parser.parse_args()
+    # Unwrapped (LLM) arguments
+    parser.add_argument(
+        "--unwrapped",
+        action="store_true",
+        help="Generate AI-powered 'Unwrapped' awards (requires ANTHROPIC_API_KEY)",
+    )
+
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use offline mode for Unwrapped (pattern-based awards, no LLM)",
+    )
+
+    args = parser.parse_args()
+
+    # Validate: --offline requires --unwrapped
+    if args.offline and not args.unwrapped:
+        parser.error("--offline requires --unwrapped")
+
+    return args
 
 
-def print_summary(stats: Statistics, paths: OutputPaths) -> None:
+def run_unwrapped(
+    chat: Conversation,
+    stats: Statistics,
+    offline: bool = False,
+    verbose: bool = False,
+) -> tuple[Optional[UnwrappedResult], Optional[str]]:
+    """Run the Unwrapped pipeline.
+
+    Args:
+        chat: Parsed conversation
+        stats: Computed statistics
+        offline: Force offline mode
+        verbose: Show progress
+
+    Returns:
+        Tuple of (UnwrappedResult or None, log_path or None)
+    """
+    from llm import generate_unwrapped_with_fallback, PipelineStage, ProgressUpdate
+    from llm.orchestrator import generate_unwrapped
+
+    print()
+    if offline:
+        print("Generating Unwrapped (offline mode)...")
+    else:
+        print("Generating Unwrapped...")
+
+    def progress_callback(update: ProgressUpdate) -> None:
+        if not verbose:
+            return
+        stage_labels = {
+            PipelineStage.PATTERNS: "Detecting patterns",
+            PipelineStage.CHUNKING: "Chunking conversation",
+            PipelineStage.EVIDENCE: "Gathering evidence",
+            PipelineStage.SYNTHESIS: "Generating awards",
+            PipelineStage.COMPLETE: "Complete",
+        }
+        label = stage_labels.get(update.stage, str(update.stage))
+        if update.total > 0:
+            print(f"  {label}... [{update.current}/{update.total}]")
+        else:
+            print(f"  {label}...")
+
+    log_path = None
+    try:
+        result = generate_unwrapped_with_fallback(
+            conversation=chat,
+            stats=stats,
+            offline=offline,
+            progress_callback=progress_callback if verbose else None,
+            enable_logging=not offline,  # Only log when using LLM
+        )
+
+        if result.success:
+            print(f"  Generated {len(result.awards)} awards")
+        else:
+            print(f"  Warning: {result.error}")
+
+        # Get log path from the most recent session
+        if not offline:
+            from llm.logging import get_logger
+            session_logger = get_logger()
+            if session_logger:
+                log_path = session_logger.log_path
+
+        return result, log_path
+
+    except Exception as e:
+        print(f"  Error generating Unwrapped: {e}")
+        return None, None
+
+
+def print_summary(
+    stats: Statistics,
+    paths: OutputPaths,
+    unwrapped_result: Optional[UnwrappedResult] = None,
+) -> None:
     """Print human-readable summary to console."""
     print()
     print("=" * 50)
@@ -181,6 +299,15 @@ def print_summary(stats: Statistics, paths: OutputPaths) -> None:
     if paths.visualization_files:
         print(f"  Visualizations: {len(paths.visualization_files)} charts in {Path(paths.visualization_files[0]).parent}")
 
+    # Unwrapped results
+    if unwrapped_result:
+        try:
+            print(format_unwrapped(unwrapped_result))
+        except UnicodeEncodeError:
+            # Fallback for Windows console
+            from output.unwrapped import format_unwrapped_brief
+            print(format_unwrapped_brief(unwrapped_result))
+
     print()
 
 
@@ -196,6 +323,11 @@ def main() -> int:
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
 
+    # Capture terminal output for logging
+    tee = TeeOutput(sys.stdout)
+    sys.stdout = tee
+    log_path = None
+
     try:
         # Determine output directory based on input filename
         if args.output_dir is None:
@@ -204,7 +336,7 @@ def main() -> int:
             output_dir = f"output_data/{input_path.stem}"
         else:
             output_dir = args.output_dir
-        
+
         # Parse
         print(f"Loading chat from {args.input_file}...")
         explicit_type = None if args.type == "auto" else args.type
@@ -230,8 +362,24 @@ def main() -> int:
         else:
             output_paths = render_outputs(chat, stats, output_dir)
 
+        # Unwrapped (if requested)
+        unwrapped_result = None
+        if args.unwrapped:
+            unwrapped_result, log_path = run_unwrapped(
+                chat, stats, offline=args.offline, verbose=args.verbose
+            )
+
+            # Re-export JSON with unwrapped results
+            if unwrapped_result:
+                from output.json_export import export_json
+                export_json(stats, output_dir, unwrapped_result)
+
         # Summary
-        print_summary(stats, output_paths)
+        print_summary(stats, output_paths, unwrapped_result)
+
+        # Log where session logs are saved
+        if log_path:
+            print(f"Session logs: {log_path}")
 
         return 0
 
@@ -251,6 +399,15 @@ def main() -> int:
         logger.exception("Unexpected error")
         print(f"Unexpected error: {e}", file=sys.stderr)
         return 2
+
+    finally:
+        # Restore stdout and save terminal output to log
+        sys.stdout = tee.original
+        if log_path:
+            from llm.logging import get_logger
+            session_logger = get_logger()
+            if session_logger:
+                session_logger.log_terminal_output(tee.getvalue())
 
 
 if __name__ == "__main__":

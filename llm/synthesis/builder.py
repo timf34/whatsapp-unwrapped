@@ -72,15 +72,16 @@ def build_synthesis_prompt(
 
     # Instructions
     sections.append("## Your Task")
-    sections.append(f"""Generate exactly 6 awards for {participants_str}.
+    sections.append(f"""Generate exactly 10 awards for {participants_str}.
 
 Requirements:
-- Balance: Aim for 3 awards per person (2-4 acceptable)
+- Balance: Aim for 5 awards per person (4-6 acceptable)
 - Specificity: Every award must cite specific evidence (numbers, quotes, times)
 - Tone: Celebratory and funny, never mean or critical
 - Uniqueness: Each award should highlight a different behavioral pattern
+- Pick the BEST award ideas from the evidence provided - the funniest, most specific ones
 
-Output a JSON object with an "awards" array containing exactly 6 award objects.
+Output a JSON object with an "awards" array containing exactly 10 award objects.
 Each award object must have: "title", "recipient", "evidence", "quip".""")
 
     return "\n".join(sections)
@@ -153,13 +154,17 @@ def _format_patterns(patterns: list[DetectedPattern]) -> str:
 
 
 def _format_evidence(evidence: ConversationEvidence) -> str:
-    """Format qualitative evidence for the prompt."""
+    """Format qualitative evidence for the prompt.
+
+    We pass ALL evidence to Sonnet so it has maximum context to work with.
+    More evidence = more specific, accurate, and funny awards.
+    """
     lines = []
 
-    # Notable quotes
+    # Notable quotes - ALL of them for maximum context
     if evidence.notable_quotes:
         lines.append("### Notable Quotes")
-        for q in evidence.notable_quotes[:5]:
+        for q in evidence.notable_quotes:  # No limit - pass everything
             person = q.get("person", "?")
             quote = q.get("quote", "?")
             # Handle both old "why_notable" and new "punchline" field
@@ -169,10 +174,10 @@ def _format_evidence(evidence: ConversationEvidence) -> str:
                 lines.append(f"  ({punchline})")
         lines.append("")
 
-    # Inside jokes
+    # Inside jokes - ALL of them
     if evidence.inside_jokes:
         lines.append("### Inside Jokes/References")
-        for j in evidence.inside_jokes[:5]:
+        for j in evidence.inside_jokes:  # No limit
             ref = j.get("reference", "?")
             # Handle both old "context" and new "punchline" field
             punchline = j.get("punchline", j.get("context", ""))
@@ -181,34 +186,35 @@ def _format_evidence(evidence: ConversationEvidence) -> str:
                 lines.append(f"  {punchline}")
         lines.append("")
 
-    # Funny moments
+    # Funny moments - ALL of them
     if evidence.funny_moments:
         lines.append("### Funny Moments")
-        for f in evidence.funny_moments[:5]:
+        for f in evidence.funny_moments:  # No limit
             desc = f.get("description", "?")
             lines.append(f"- {desc}")
         lines.append("")
 
-    # Dynamics
+    # Dynamics - ALL of them
     if evidence.dynamics:
         lines.append("### Relationship Dynamics")
-        for d in evidence.dynamics[:3]:
+        for d in evidence.dynamics:  # No limit
             lines.append(f"- {d}")
         lines.append("")
 
-    # Style notes
+    # Style notes - ALL of them
     if evidence.style_notes:
         lines.append("### Texting Style Notes")
         for person, notes in evidence.style_notes.items():
             lines.append(f"**{person}:**")
-            for note in notes[:3]:
+            for note in notes:  # No limit
                 lines.append(f"- {note}")
         lines.append("")
 
-    # Award ideas from Haiku
+    # Award ideas from Haiku - ALL of them for Sonnet to pick from
     if evidence.award_ideas:
         lines.append("### Suggested Award Ideas (from analysis)")
-        for a in evidence.award_ideas[:5]:
+        lines.append("These are award ideas extracted from the conversation. Pick the BEST and most specific ones, or combine/improve them:")
+        for a in evidence.award_ideas:  # No limit - let Sonnet see everything
             title = a.get("title", "?")
             recipient = a.get("recipient", "?")
             ev = a.get("evidence", "")
@@ -221,13 +227,18 @@ def _format_evidence(evidence: ConversationEvidence) -> str:
 
 
 def _format_sample_messages(messages: list[Message]) -> str:
-    """Format sample messages for voice reference."""
+    """Format sample messages for voice reference.
+
+    Includes more messages to give Sonnet better context for
+    the actual voice and personality of the conversation.
+    """
     lines = []
 
-    for msg in messages[:15]:  # Cap at 15 samples
+    for msg in messages:  # No cap - include all selected samples
         timestamp = msg.timestamp.strftime("%Y-%m-%d %H:%M")
         sender = msg.sender or "System"
-        text = msg.text[:200] + "..." if len(msg.text) > 200 else msg.text
+        # Allow longer snippets for better context
+        text = msg.text[:300] + "..." if len(msg.text) > 300 else msg.text
         lines.append(f"[{timestamp}] {sender}: {text}")
 
     return "\n".join(lines)
@@ -235,18 +246,21 @@ def _format_sample_messages(messages: list[Message]) -> str:
 
 def select_sample_messages(
     conversation: Conversation,
-    count: int = 20,
+    count: int = 50,
 ) -> list[Message]:
     """Select representative sample messages from the conversation.
 
-    Selects a mix of:
-    - Recent messages
-    - Messages with personality (longer, with emojis, etc.)
-    - Spread across the conversation
+    Selects a generous mix of:
+    - Recent messages (for current voice)
+    - Messages with personality (longer, with emojis, questions, exclamations)
+    - Spread across the conversation (for full picture)
+
+    More samples = better context for Sonnet to understand the real
+    personality and voice of the conversation.
 
     Args:
         conversation: Full conversation
-        count: Number of samples to select
+        count: Number of samples to select (default 50 for good coverage)
 
     Returns:
         List of representative messages
@@ -258,33 +272,41 @@ def select_sample_messages(
         return messages
 
     samples = []
+    used_indices = set()
 
-    # Get some recent messages (last 20%)
+    # Get some recent messages (last 20%) - about 1/3 of samples
     recent_start = int(len(messages) * 0.8)
     recent = messages[recent_start:]
-    samples.extend(random.sample(recent, min(count // 3, len(recent))))
+    recent_count = min(count // 3, len(recent))
+    recent_samples = random.sample(range(len(recent)), recent_count)
+    for idx in recent_samples:
+        samples.append(recent[idx])
+        used_indices.add(recent_start + idx)
 
-    # Get messages with personality (longer ones, with emojis, punctuation)
+    # Get messages with personality (longer ones, with emojis, punctuation) - about 1/3 of samples
     personality_msgs = [
-        m for m in messages
-        if len(m.text) > 50 or "!" in m.text or "?" in m.text
+        (i, m) for i, m in enumerate(messages)
+        if i not in used_indices and (
+            len(m.text) > 50 or "!" in m.text or "?" in m.text or "haha" in m.text.lower()
+        )
     ]
     if personality_msgs:
-        remaining = count - len(samples)
-        samples.extend(random.sample(
-            personality_msgs,
-            min(remaining // 2, len(personality_msgs))
-        ))
+        personality_count = min((count - len(samples)) // 2, len(personality_msgs))
+        personality_samples = random.sample(personality_msgs, personality_count)
+        for idx, msg in personality_samples:
+            samples.append(msg)
+            used_indices.add(idx)
 
-    # Fill rest with spread across conversation
+    # Fill rest with spread across conversation for temporal coverage
     remaining = count - len(samples)
     if remaining > 0:
-        step = len(messages) // remaining
-        for i in range(0, len(messages), max(1, step)):
+        step = max(1, len(messages) // remaining)
+        for i in range(0, len(messages), step):
             if len(samples) >= count:
                 break
-            if messages[i] not in samples:
+            if i not in used_indices:
                 samples.append(messages[i])
+                used_indices.add(i)
 
     # Sort by timestamp
     samples.sort(key=lambda m: m.timestamp)

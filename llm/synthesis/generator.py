@@ -156,20 +156,20 @@ def _get_issues(awards: list[Award], participants: list[str]) -> list[str]:
     """
     issues = []
 
-    # Check count
-    if len(awards) < 6:
-        issues.append(f"Only {len(awards)} awards generated, need 6")
-    elif len(awards) > 6:
-        issues.append(f"Generated {len(awards)} awards, should be exactly 6")
+    # Check count - now expecting 10 awards
+    if len(awards) < 8:
+        issues.append(f"Only {len(awards)} awards generated, need at least 8 (target is 10)")
+    elif len(awards) > 12:
+        issues.append(f"Generated {len(awards)} awards, should be around 10")
 
-    # Check balance
+    # Check balance - now expecting ~5 per person
     recipient_counts = {}
     for award in awards:
         recipient_counts[award.recipient] = recipient_counts.get(award.recipient, 0) + 1
 
     for recipient, count in recipient_counts.items():
-        if count > 4:
-            issues.append(f"{recipient} has {count} awards, should have 2-4")
+        if count > 7:
+            issues.append(f"{recipient} has {count} awards, should have 4-6")
 
     # Check for unknown recipients
     normalized_participants = {p.lower(): p for p in participants}

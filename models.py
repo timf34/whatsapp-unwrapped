@@ -248,12 +248,14 @@ class DetectedPattern:
 class EvidencePacket:
     """Qualitative evidence from Haiku analysis of a chunk."""
 
-    notable_quotes: list[dict[str, Any]]  # {"person", "quote", "why_notable"}
-    inside_jokes: list[dict[str, Any]]  # {"reference", "context", "frequency_hint"}
+    notable_quotes: list[dict[str, Any]]  # {"person", "quote", "punchline"}
+    inside_jokes: list[dict[str, Any]]  # {"reference", "punchline"}
     dynamics: list[str]  # Short observations about interaction
-    funny_moments: list[dict[str, Any]]  # {"description", "evidence"}
+    funny_moments: list[dict[str, Any]]  # {"description"}
     style_notes: dict[str, list[str]]  # {person: [observations]}
     award_ideas: list[dict[str, Any]]  # {"title", "recipient", "evidence"}
+    chunk_start_idx: int = 0  # Start message index in original conversation
+    chunk_end_idx: int = 0  # End message index in original conversation
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -264,6 +266,8 @@ class EvidencePacket:
             "funny_moments": self.funny_moments,
             "style_notes": self.style_notes,
             "award_ideas": self.award_ideas,
+            "chunk_start_idx": self.chunk_start_idx,
+            "chunk_end_idx": self.chunk_end_idx,
         }
 
 
