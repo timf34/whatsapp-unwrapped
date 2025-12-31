@@ -1,0 +1,403 @@
+"""Orchestrator for the three-pass Unwrapped pipeline.
+
+Coordinates:
+- Pass 0: Python pattern detection
+- Pass 1: Haiku evidence gathering
+- Pass 2: Sonnet award synthesis
+
+Provides fallback logic when LLM calls fail.
+"""
+
+import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Callable, Optional
+
+from models import (
+    Award,
+    Conversation,
+    ConversationEvidence,
+    DetectedPattern,
+    Statistics,
+    UnwrappedResult,
+)
+from analysis.pattern_detection import detect_all_patterns
+from llm.providers import AnthropicProvider, HAIKU_MODEL, SONNET_MODEL
+from llm.evidence import chunk_conversation, gather_all_evidence, aggregate_evidence
+from llm.synthesis import build_synthesis_prompt, select_sample_messages, generate_awards
+from exceptions import ProviderError, EvidenceError, SynthesisError
+
+logger = logging.getLogger(__name__)
+
+
+class PipelineStage(Enum):
+    """Stages of the Unwrapped pipeline."""
+    PATTERNS = "patterns"
+    CHUNKING = "chunking"
+    EVIDENCE = "evidence"
+    SYNTHESIS = "synthesis"
+    COMPLETE = "complete"
+
+
+@dataclass
+class ProgressUpdate:
+    """Progress update for callbacks."""
+    stage: PipelineStage
+    message: str
+    current: int = 0
+    total: int = 0
+
+
+# Type alias for progress callback
+ProgressCallback = Callable[[ProgressUpdate], None]
+
+
+def generate_unwrapped(
+    conversation: Conversation,
+    stats: Statistics,
+    api_key: Optional[str] = None,
+    progress_callback: Optional[ProgressCallback] = None,
+) -> UnwrappedResult:
+    """Generate Unwrapped awards using the full pipeline.
+
+    This is the main entry point for the LLM-powered pipeline:
+    1. Detect patterns (Python, no LLM)
+    2. Gather evidence with Haiku
+    3. Synthesize awards with Sonnet
+
+    Args:
+        conversation: Parsed conversation
+        stats: Computed statistics
+        api_key: Anthropic API key (falls back to env var)
+        progress_callback: Optional callback for progress updates
+
+    Returns:
+        UnwrappedResult with awards, patterns, evidence, and metadata
+
+    Raises:
+        ProviderError: If API key is missing or invalid
+    """
+    def _progress(stage: PipelineStage, message: str, current: int = 0, total: int = 0):
+        if progress_callback:
+            progress_callback(ProgressUpdate(stage, message, current, total))
+
+    participants = list(stats.basic.messages_per_person.keys())
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    # Pass 0: Pattern detection
+    _progress(PipelineStage.PATTERNS, "Detecting behavioral patterns...")
+    patterns = detect_all_patterns(conversation, stats)
+    logger.info(f"Detected {len(patterns)} patterns")
+
+    # Initialize providers
+    try:
+        provider = AnthropicProvider(api_key=api_key)
+        haiku_provider = provider.with_model(HAIKU_MODEL)
+        sonnet_provider = provider.with_model(SONNET_MODEL)
+    except ProviderError:
+        raise
+
+    # Pass 1: Evidence gathering with Haiku
+    _progress(PipelineStage.CHUNKING, "Chunking conversation...")
+    chunks = chunk_conversation(conversation)
+    logger.info(f"Created {len(chunks)} chunks")
+
+    _progress(PipelineStage.EVIDENCE, "Gathering evidence with Haiku...", 0, len(chunks))
+
+    def chunk_progress(current: int, total: int):
+        _progress(PipelineStage.EVIDENCE, f"Processing chunk {current}/{total}...", current, total)
+
+    packets, haiku_input, haiku_output = gather_all_evidence(
+        chunks, haiku_provider, chunk_progress
+    )
+    total_input_tokens += haiku_input
+    total_output_tokens += haiku_output
+    logger.info(f"Gathered {len(packets)} evidence packets")
+
+    evidence = aggregate_evidence(packets)
+    logger.info(f"Aggregated: {len(evidence.notable_quotes)} quotes, {len(evidence.inside_jokes)} jokes")
+
+    # Pass 2: Award synthesis with Sonnet
+    _progress(PipelineStage.SYNTHESIS, "Generating awards with Sonnet...")
+
+    sample_messages = select_sample_messages(conversation, count=15)
+    prompt = build_synthesis_prompt(
+        stats=stats,
+        patterns=patterns,
+        evidence=evidence,
+        sample_messages=sample_messages,
+        participants=participants,
+    )
+
+    awards, response, sonnet_input, sonnet_output = generate_awards(
+        prompt=prompt,
+        provider=sonnet_provider,
+        participants=participants,
+        max_retries=1,
+    )
+    total_input_tokens += sonnet_input
+    total_output_tokens += sonnet_output
+
+    _progress(PipelineStage.COMPLETE, "Done!")
+
+    return UnwrappedResult(
+        awards=awards,
+        patterns_used=patterns,
+        evidence=evidence,
+        model_used="haiku+sonnet",
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
+        success=True,
+    )
+
+
+def generate_unwrapped_offline(
+    conversation: Conversation,
+    stats: Statistics,
+) -> UnwrappedResult:
+    """Generate Unwrapped using only local pattern detection (no LLM).
+
+    This is the fallback mode when no API key is available or when
+    explicitly requested with --offline.
+
+    Args:
+        conversation: Parsed conversation
+        stats: Computed statistics
+
+    Returns:
+        UnwrappedResult with pattern-based awards (no evidence)
+    """
+    participants = list(stats.basic.messages_per_person.keys())
+
+    # Pass 0 only: Pattern detection
+    patterns = detect_all_patterns(conversation, stats)
+    logger.info(f"Detected {len(patterns)} patterns (offline mode)")
+
+    # Convert patterns to simple awards
+    awards = _create_pattern_awards(patterns, participants)
+
+    return UnwrappedResult(
+        awards=awards,
+        patterns_used=patterns,
+        evidence=None,
+        model_used="offline",
+        input_tokens=0,
+        output_tokens=0,
+        success=True,
+    )
+
+
+def generate_unwrapped_with_fallback(
+    conversation: Conversation,
+    stats: Statistics,
+    api_key: Optional[str] = None,
+    offline: bool = False,
+    progress_callback: Optional[ProgressCallback] = None,
+) -> UnwrappedResult:
+    """Generate Unwrapped with graceful fallback on errors.
+
+    Fallback chain:
+    1. Full pipeline (Haiku + Sonnet)
+    2. Skip Haiku, use Sonnet with patterns only
+    3. Offline mode (pattern-based awards)
+
+    Args:
+        conversation: Parsed conversation
+        stats: Computed statistics
+        api_key: Anthropic API key (falls back to env var)
+        offline: Force offline mode
+        progress_callback: Optional callback for progress updates
+
+    Returns:
+        UnwrappedResult - always succeeds, may have degraded output
+    """
+    def _progress(stage: PipelineStage, message: str, current: int = 0, total: int = 0):
+        if progress_callback:
+            progress_callback(ProgressUpdate(stage, message, current, total))
+
+    # Force offline mode if requested
+    if offline:
+        logger.info("Offline mode requested")
+        return generate_unwrapped_offline(conversation, stats)
+
+    # Check for API key early
+    import os
+    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not effective_key:
+        logger.warning("No API key available, using offline mode")
+        _progress(PipelineStage.PATTERNS, "No API key - using offline mode...")
+        return generate_unwrapped_offline(conversation, stats)
+
+    # Try full pipeline
+    try:
+        return generate_unwrapped(
+            conversation=conversation,
+            stats=stats,
+            api_key=api_key,
+            progress_callback=progress_callback,
+        )
+    except ProviderError as e:
+        logger.error(f"Provider error: {e}")
+        # Could be rate limit, invalid key, etc.
+        # Fall back to offline
+        _progress(PipelineStage.PATTERNS, f"API error: {e}. Using offline mode...")
+        result = generate_unwrapped_offline(conversation, stats)
+        result.error = str(e)
+        return result
+    except EvidenceError as e:
+        logger.warning(f"Evidence gathering failed: {e}")
+        # Try without evidence (Sonnet with patterns only)
+        return _generate_without_evidence(
+            conversation, stats, api_key, progress_callback, str(e)
+        )
+    except SynthesisError as e:
+        logger.error(f"Synthesis failed: {e}")
+        # Fall back to offline
+        _progress(PipelineStage.PATTERNS, f"Synthesis error: {e}. Using offline mode...")
+        result = generate_unwrapped_offline(conversation, stats)
+        result.error = str(e)
+        return result
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        # Last resort: offline mode
+        result = generate_unwrapped_offline(conversation, stats)
+        result.error = f"Unexpected error: {e}"
+        return result
+
+
+def _generate_without_evidence(
+    conversation: Conversation,
+    stats: Statistics,
+    api_key: Optional[str],
+    progress_callback: Optional[ProgressCallback],
+    evidence_error: str,
+) -> UnwrappedResult:
+    """Generate awards using Sonnet but without Haiku evidence.
+
+    Used when Haiku fails but we still want to try Sonnet.
+    """
+    def _progress(stage: PipelineStage, message: str, current: int = 0, total: int = 0):
+        if progress_callback:
+            progress_callback(ProgressUpdate(stage, message, current, total))
+
+    participants = list(stats.basic.messages_per_person.keys())
+
+    # Pattern detection
+    _progress(PipelineStage.PATTERNS, "Detecting patterns (evidence gathering failed)...")
+    patterns = detect_all_patterns(conversation, stats)
+
+    # Try Sonnet without evidence
+    try:
+        provider = AnthropicProvider(api_key=api_key)
+        sonnet_provider = provider.with_model(SONNET_MODEL)
+
+        _progress(PipelineStage.SYNTHESIS, "Generating awards (without evidence)...")
+
+        sample_messages = select_sample_messages(conversation, count=15)
+        prompt = build_synthesis_prompt(
+            stats=stats,
+            patterns=patterns,
+            evidence=None,  # No evidence available
+            sample_messages=sample_messages,
+            participants=participants,
+        )
+
+        awards, response, input_tokens, output_tokens = generate_awards(
+            prompt=prompt,
+            provider=sonnet_provider,
+            participants=participants,
+            max_retries=1,
+        )
+
+        _progress(PipelineStage.COMPLETE, "Done (without evidence)")
+
+        return UnwrappedResult(
+            awards=awards,
+            patterns_used=patterns,
+            evidence=None,
+            model_used="sonnet-only",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            success=True,
+            error=f"Evidence gathering failed: {evidence_error}",
+        )
+
+    except Exception as e:
+        logger.error(f"Sonnet also failed: {e}")
+        # Ultimate fallback
+        result = generate_unwrapped_offline(conversation, stats)
+        result.error = f"Evidence: {evidence_error}; Synthesis: {e}"
+        return result
+
+
+def _create_pattern_awards(
+    patterns: list[DetectedPattern],
+    participants: list[str],
+) -> list[Award]:
+    """Convert detected patterns to simple awards for offline mode.
+
+    Creates awards from the top patterns without LLM creativity.
+    """
+    awards = []
+
+    # Map pattern types to award titles
+    title_templates = {
+        "late_good_morning": "The Late Riser Award",
+        "late_goodnight": "The Night Owl Award",
+        "midnight_philosopher": "The Midnight Philosopher",
+        "catchphrase": "The Catchphrase Champion",
+        "laugh_style": "The Signature Laugh Award",
+        "apology_patterns": "The Apology Artist",
+        "punctuation_habits": "The Punctuation Enthusiast",
+        "emoji_signature": "The Emoji Expert",
+        "triple_texter": "The Triple Texter",
+        "message_length_style": "The Word Count Champion",
+        "initiator_imbalance": "The Conversation Starter",
+        "question_asker": "The Curious One",
+    }
+
+    # Track awards per person to balance
+    awards_per_person = {p: 0 for p in participants}
+    max_per_person = 4
+
+    for pattern in patterns:
+        if len(awards) >= 6:
+            break
+
+        # Skip if this person already has enough awards
+        if awards_per_person.get(pattern.person, 0) >= max_per_person:
+            continue
+
+        title = title_templates.get(pattern.pattern_type, f"The {pattern.pattern_type.replace('_', ' ').title()}")
+
+        # Build evidence from pattern
+        evidence = pattern.description
+        if pattern.evidence and len(pattern.evidence) > 0:
+            first_ev = pattern.evidence[0]
+            if isinstance(first_ev, dict):
+                ev_parts = [f"{k}: {v}" for k, v in list(first_ev.items())[:2]]
+                evidence += f" ({', '.join(ev_parts)})"
+
+        award = Award(
+            title=title,
+            recipient=pattern.person,
+            evidence=evidence,
+            quip="(Generated in offline mode)",
+        )
+        awards.append(award)
+        awards_per_person[pattern.person] = awards_per_person.get(pattern.person, 0) + 1
+
+    # If we don't have enough awards, create generic ones
+    while len(awards) < 6 and participants:
+        # Find person with fewest awards
+        min_person = min(participants, key=lambda p: awards_per_person.get(p, 0))
+        awards.append(Award(
+            title="Active Participant Award",
+            recipient=min_person,
+            evidence="Consistently engaged in conversation",
+            quip="(Generated in offline mode)",
+        ))
+        awards_per_person[min_person] = awards_per_person.get(min_person, 0) + 1
+
+    return awards[:6]
