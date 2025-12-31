@@ -21,21 +21,30 @@ class SessionLogger:
     - session_info.json - Metadata about the session
     """
 
-    def __init__(self, base_dir: str = "logs", enabled: bool = True):
+    def __init__(self, base_dir: str = "logs", enabled: bool = True, source_file: Optional[str] = None):
         """Initialize session logger.
 
         Args:
             base_dir: Base directory for logs
             enabled: Whether logging is enabled
+            source_file: Path to source file (used to group logs by filename)
         """
         self.enabled = enabled
         if not enabled:
             self.session_dir = None
             return
 
-        # Create timestamped session directory
+        # Create directory structure: logs/{filename}/{timestamp}/
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.session_dir = Path(base_dir) / timestamp
+
+        if source_file:
+            # Extract filename without extension
+            filename_stem = Path(source_file).stem
+            self.session_dir = Path(base_dir) / filename_stem / timestamp
+        else:
+            # Fallback to just timestamp if no source file provided
+            self.session_dir = Path(base_dir) / timestamp
+
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         # Create subdirectories

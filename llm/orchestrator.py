@@ -89,7 +89,7 @@ def generate_unwrapped(
     total_output_tokens = 0
 
     # Initialize session logger
-    session_logger = SessionLogger(enabled=enable_logging)
+    session_logger = SessionLogger(enabled=enable_logging, source_file=conversation.source_file)
     set_logger(session_logger)  # Make available globally for terminal output logging
     if session_logger.log_path:
         logger.info(f"Session logs: {session_logger.log_path}")

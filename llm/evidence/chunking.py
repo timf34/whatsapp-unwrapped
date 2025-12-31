@@ -11,7 +11,7 @@ CHARS_PER_TOKEN = 4
 
 # Default chunk settings
 DEFAULT_TARGET_TOKENS = 8000
-DEFAULT_OVERLAP_TOKENS = 200
+DEFAULT_OVERLAP_MESSAGES = 15  # Include last N messages from previous chunk for context
 
 
 @dataclass
@@ -40,14 +40,14 @@ class ConversationChunk:
 def chunk_conversation(
     conversation: Conversation,
     target_tokens: int = DEFAULT_TARGET_TOKENS,
-    overlap_tokens: int = DEFAULT_OVERLAP_TOKENS,
+    overlap_messages: int = DEFAULT_OVERLAP_MESSAGES,
 ) -> list[ConversationChunk]:
     """Split conversation into chunks for LLM processing.
 
     Args:
         conversation: Full conversation to chunk
         target_tokens: Target tokens per chunk (default 8000)
-        overlap_tokens: Overlap between chunks for context (default 200)
+        overlap_messages: Number of messages to overlap between chunks (default 15)
 
     Returns:
         List of ConversationChunk objects
@@ -77,7 +77,6 @@ def chunk_conversation(
     # Split into multiple chunks
     chunks = []
     current_start = 0
-    overlap_chars = overlap_tokens * CHARS_PER_TOKEN
 
     while current_start < len(messages):
         # Find end of this chunk
@@ -114,24 +113,15 @@ def chunk_conversation(
             )
         )
 
-        # Move to next chunk, with overlap
-        # Find where to start next chunk to get overlap
-        next_start = current_end + 1
-        if next_start < len(messages) and overlap_tokens > 0:
-            # Back up to create overlap
-            overlap_text = ""
-            for i in range(current_end, current_start - 1, -1):
-                msg_text = _format_single_message(messages[i])
-                if _estimate_tokens(overlap_text + msg_text) > overlap_tokens:
-                    break
-                overlap_text = msg_text + overlap_text
-                next_start = i
+        # Move to next chunk with message-based overlap
+        # Next chunk starts overlap_messages before the end of this chunk
+        next_start = current_end + 1 - overlap_messages
+
+        # Ensure we make progress (don't go backwards past current start)
+        if next_start <= current_start:
+            next_start = current_end + 1
 
         current_start = next_start
-
-        # Safety check to prevent infinite loop
-        if current_start <= chunks[-1].start_idx:
-            current_start = chunks[-1].end_idx + 1
 
     return chunks
 
