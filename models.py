@@ -214,3 +214,121 @@ class OutputPaths:
 
     json_file: str
     visualization_files: list[str]
+
+
+# =============================================================================
+# LLM Feature Models (Unwrapped)
+# =============================================================================
+
+
+@dataclass
+class DetectedPattern:
+    """A behavioral pattern found via Python analysis."""
+
+    pattern_type: str  # e.g., "late_good_morning", "triple_texter"
+    person: str  # Who exhibits this pattern
+    frequency: int  # How often it occurs
+    evidence: list[dict[str, Any]]  # Sample messages proving it
+    strength: float  # 0-1, how distinctive/notable
+    description: str  # Human-readable description for LLM
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "pattern_type": self.pattern_type,
+            "person": self.person,
+            "frequency": self.frequency,
+            "evidence": self.evidence,
+            "strength": self.strength,
+            "description": self.description,
+        }
+
+
+@dataclass
+class EvidencePacket:
+    """Qualitative evidence from Haiku analysis of a chunk."""
+
+    notable_quotes: list[dict[str, Any]]  # {"person", "quote", "why_notable"}
+    inside_jokes: list[dict[str, Any]]  # {"reference", "context", "frequency_hint"}
+    dynamics: list[str]  # Short observations about interaction
+    funny_moments: list[dict[str, Any]]  # {"description", "evidence"}
+    style_notes: dict[str, list[str]]  # {person: [observations]}
+    award_ideas: list[dict[str, Any]]  # {"title", "recipient", "evidence"}
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "notable_quotes": self.notable_quotes,
+            "inside_jokes": self.inside_jokes,
+            "dynamics": self.dynamics,
+            "funny_moments": self.funny_moments,
+            "style_notes": self.style_notes,
+            "award_ideas": self.award_ideas,
+        }
+
+
+@dataclass
+class ConversationEvidence:
+    """Aggregated evidence from all chunks."""
+
+    notable_quotes: list[dict[str, Any]]
+    inside_jokes: list[dict[str, Any]]
+    dynamics: list[str]
+    funny_moments: list[dict[str, Any]]
+    style_notes: dict[str, list[str]]
+    award_ideas: list[dict[str, Any]]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "notable_quotes": self.notable_quotes,
+            "inside_jokes": self.inside_jokes,
+            "dynamics": self.dynamics,
+            "funny_moments": self.funny_moments,
+            "style_notes": self.style_notes,
+            "award_ideas": self.award_ideas,
+        }
+
+
+@dataclass
+class Award:
+    """A single generated award."""
+
+    title: str  # Funny, specific award name (3-8 words)
+    recipient: str  # Which person wins this
+    evidence: str  # The specific data point that proves it
+    quip: str  # One sentence that makes it funny (max 15 words)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "title": self.title,
+            "recipient": self.recipient,
+            "evidence": self.evidence,
+            "quip": self.quip,
+        }
+
+
+@dataclass
+class UnwrappedResult:
+    """Complete result from the unwrapped generation."""
+
+    awards: list[Award]
+    patterns_used: list[DetectedPattern]
+    model_used: str  # "offline", "haiku+sonnet", etc.
+    input_tokens: int
+    output_tokens: int
+    success: bool
+    error: Optional[str] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "awards": [a.to_dict() for a in self.awards],
+            "patterns_used": [p.to_dict() for p in self.patterns_used],
+            "model_used": self.model_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "success": self.success,
+            "error": self.error,
+        }
