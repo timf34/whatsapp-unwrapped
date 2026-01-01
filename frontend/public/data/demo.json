@@ -1,0 +1,72 @@
+{
+  "id": "fitz-2024-unwrapped",
+  "chatName": "Fitzwilliam Group Chat",
+  "generatedAt": "2024-12-31T12:00:00Z",
+
+  "overview": {
+    "totalMessages": 793,
+    "totalDays": 19,
+    "participantCount": 18,
+    "dateRange": {
+      "start": "2024-12-01",
+      "end": "2024-12-19"
+    }
+  },
+
+  "leaderboard": [
+    {"name": "Sam", "messages": 234, "percentage": 29.5},
+    {"name": "Alex", "messages": 156, "percentage": 19.7},
+    {"name": "Tim", "messages": 89, "percentage": 11.2},
+    {"name": "Jordan", "messages": 67, "percentage": 8.4},
+    {"name": "Casey", "messages": 54, "percentage": 6.8},
+    {"name": "Morgan", "messages": 48, "percentage": 6.0}
+  ],
+
+  "peakTimes": {
+    "busiestHour": 21,
+    "busiestHourFormatted": "9 PM",
+    "busiestDay": "Wednesday"
+  },
+
+  "funFacts": [
+    "You've been chatting for 19 days straight (100% active!)",
+    "Longest streak: 14 days in a row without missing a beat!",
+    "47 photos and videos shared - you're a visual bunch",
+    "12 deleted messages... what were they? The mystery remains"
+  ],
+
+  "awards": [
+    {
+      "title": "The Voice Note Novelist",
+      "recipient": "Sarah",
+      "evidence": "Sent 23 voice notes averaging 2 minutes each",
+      "quip": "Some say they're still listening to the backlog..."
+    },
+    {
+      "title": "The Ghost",
+      "recipient": "Mike",
+      "evidence": "Lurked for 12 days before dropping a single 'lol'",
+      "quip": "Efficiency at its finest"
+    },
+    {
+      "title": "The Early Bird",
+      "recipient": "Tim",
+      "evidence": "Sent 34 messages before 7 AM",
+      "quip": "Either an insomniac or just really loves coffee"
+    }
+  ],
+
+  "highlights": {
+    "notableQuotes": [
+      {
+        "text": "I can't believe you actually did that",
+        "author": "Alex",
+        "context": "The Pizza Incident of December 3rd"
+      }
+    ],
+    "insideJokes": [
+      "The Sacred Wednesday Ritual",
+      "That time with the umbrella"
+    ]
+  }
+}
