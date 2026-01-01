@@ -27,8 +27,9 @@ class ChunkResult:
 
 
 # Token limits for evidence gathering - start higher, retry with more if truncated
-INITIAL_MAX_TOKENS = 4096
-RETRY_MAX_TOKENS = 6144
+# Increased to handle both Anthropic and OpenAI models effectively
+INITIAL_MAX_TOKENS = 6144
+RETRY_MAX_TOKENS = 8192
 
 
 def gather_evidence_from_chunk(

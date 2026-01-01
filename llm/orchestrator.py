@@ -22,11 +22,20 @@ from models import (
     UnwrappedResult,
 )
 from analysis.pattern_detection import detect_all_patterns
-from llm.providers import AnthropicProvider, HAIKU_MODEL, SONNET_MODEL
+from llm.providers import (
+    AnthropicProvider, HAIKU_MODEL, SONNET_MODEL,
+    OpenAIProvider, GPT_MINI_MODEL, GPT_MAIN_MODEL,
+    LLMProvider,
+)
 from llm.evidence import chunk_conversation, gather_all_evidence, aggregate_evidence, filter_evidence_by_quality
 from llm.synthesis import build_synthesis_prompt, select_sample_messages, generate_awards
 from llm.logging import SessionLogger, set_logger
 from exceptions import ProviderError, EvidenceError, SynthesisError
+
+# Supported providers
+PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_OPENAI = "openai"
+SUPPORTED_PROVIDERS = [PROVIDER_ANTHROPIC, PROVIDER_OPENAI]
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +68,22 @@ def generate_unwrapped(
     api_key: Optional[str] = None,
     progress_callback: Optional[ProgressCallback] = None,
     enable_logging: bool = True,
+    provider: str = PROVIDER_ANTHROPIC,
 ) -> UnwrappedResult:
     """Generate Unwrapped awards using the full pipeline.
 
     This is the main entry point for the LLM-powered pipeline:
     1. Detect patterns (Python, no LLM)
-    2. Gather evidence with Haiku
-    3. Synthesize awards with Sonnet
+    2. Gather evidence with Haiku/GPT-mini
+    3. Synthesize awards with Sonnet/GPT-main
 
     Args:
         conversation: Parsed conversation
         stats: Computed statistics
-        api_key: Anthropic API key (falls back to env var)
+        api_key: API key (falls back to env var based on provider)
         progress_callback: Optional callback for progress updates
         enable_logging: Whether to save debug logs to logs/ directory
+        provider: LLM provider to use ("anthropic" or "openai")
 
     Returns:
         UnwrappedResult with awards, patterns, evidence, and metadata
@@ -99,15 +110,26 @@ def generate_unwrapped(
     patterns = detect_all_patterns(conversation, stats)
     logger.info(f"Detected {len(patterns)} patterns")
 
-    # Initialize providers
+    # Initialize providers based on selection
     try:
-        provider = AnthropicProvider(api_key=api_key)
-        haiku_provider = provider.with_model(HAIKU_MODEL)
-        sonnet_provider = provider.with_model(SONNET_MODEL)
+        if provider == PROVIDER_OPENAI:
+            base_provider = OpenAIProvider(api_key=api_key)
+            evidence_provider = base_provider.with_model(GPT_MINI_MODEL)
+            synthesis_provider = base_provider.with_model(GPT_MAIN_MODEL)
+            model_name = "gpt-mini+gpt-main"
+            evidence_model_name = "GPT-5-mini"
+            synthesis_model_name = "GPT-5.2"
+        else:
+            base_provider = AnthropicProvider(api_key=api_key)
+            evidence_provider = base_provider.with_model(HAIKU_MODEL)
+            synthesis_provider = base_provider.with_model(SONNET_MODEL)
+            model_name = "haiku+sonnet"
+            evidence_model_name = "Haiku"
+            synthesis_model_name = "Sonnet"
     except ProviderError:
         raise
 
-    # Pass 1: Evidence gathering with Haiku
+    # Pass 1: Evidence gathering
     _progress(PipelineStage.CHUNKING, "Chunking conversation...")
     chunks = chunk_conversation(conversation)
     logger.info(f"Created {len(chunks)} chunks")
@@ -119,16 +141,16 @@ def generate_unwrapped(
         participants=participants,
     )
 
-    _progress(PipelineStage.EVIDENCE, "Gathering evidence with Haiku...", 0, len(chunks))
+    _progress(PipelineStage.EVIDENCE, f"Gathering evidence with {evidence_model_name}...", 0, len(chunks))
 
     def chunk_progress(current: int, total: int):
         _progress(PipelineStage.EVIDENCE, f"Processing chunk {current}/{total}...", current, total)
 
-    packets, haiku_input, haiku_output = gather_all_evidence(
-        chunks, haiku_provider, chunk_progress, session_logger=session_logger
+    packets, evidence_input, evidence_output = gather_all_evidence(
+        chunks, evidence_provider, chunk_progress, session_logger=session_logger
     )
-    total_input_tokens += haiku_input
-    total_output_tokens += haiku_output
+    total_input_tokens += evidence_input
+    total_output_tokens += evidence_output
     logger.info(f"Gathered {len(packets)} evidence packets")
 
     # Log pre-aggregation data
@@ -149,10 +171,10 @@ def generate_unwrapped(
     # Log post-aggregation data
     session_logger.log_post_aggregation(evidence)
 
-    # Quality filter: Have Haiku judge the evidence
+    # Quality filter: Have the evidence model judge the evidence
     _progress(PipelineStage.EVIDENCE, "Filtering evidence by quality...")
     evidence, filter_input, filter_output = filter_evidence_by_quality(
-        evidence, haiku_provider
+        evidence, evidence_provider
     )
     total_input_tokens += filter_input
     total_output_tokens += filter_output
@@ -161,8 +183,8 @@ def generate_unwrapped(
     # Log post-filter data
     session_logger.log_quality_filter(evidence)
 
-    # Pass 2: Award synthesis with Sonnet
-    _progress(PipelineStage.SYNTHESIS, "Generating awards with Sonnet...")
+    # Pass 2: Award synthesis
+    _progress(PipelineStage.SYNTHESIS, f"Generating awards with {synthesis_model_name}...")
 
     sample_messages = select_sample_messages(conversation, count=50)
     prompt = build_synthesis_prompt(
@@ -176,14 +198,14 @@ def generate_unwrapped(
     # Log the prompt sent to Sonnet
     session_logger.log_sonnet_prompt(prompt)
 
-    awards, response, sonnet_input, sonnet_output = generate_awards(
+    awards, response, synthesis_input, synthesis_output = generate_awards(
         prompt=prompt,
-        provider=sonnet_provider,
+        provider=synthesis_provider,
         participants=participants,
         max_retries=1,
     )
-    total_input_tokens += sonnet_input
-    total_output_tokens += sonnet_output
+    total_input_tokens += synthesis_input
+    total_output_tokens += synthesis_output
 
     # Log Sonnet response
     session_logger.log_sonnet_response(response or {}, awards)
@@ -194,7 +216,7 @@ def generate_unwrapped(
         awards=awards,
         patterns_used=patterns,
         evidence=evidence,
-        model_used="haiku+sonnet",
+        model_used=model_name,
         input_tokens=total_input_tokens,
         output_tokens=total_output_tokens,
         success=True,
@@ -249,21 +271,23 @@ def generate_unwrapped_with_fallback(
     offline: bool = False,
     progress_callback: Optional[ProgressCallback] = None,
     enable_logging: bool = True,
+    provider: str = PROVIDER_ANTHROPIC,
 ) -> UnwrappedResult:
     """Generate Unwrapped with graceful fallback on errors.
 
     Fallback chain:
-    1. Full pipeline (Haiku + Sonnet)
-    2. Skip Haiku, use Sonnet with patterns only
+    1. Full pipeline (evidence + synthesis models)
+    2. Skip evidence gathering, use synthesis with patterns only
     3. Offline mode (pattern-based awards)
 
     Args:
         conversation: Parsed conversation
         stats: Computed statistics
-        api_key: Anthropic API key (falls back to env var)
+        api_key: API key (falls back to env var based on provider)
         offline: Force offline mode
         progress_callback: Optional callback for progress updates
         enable_logging: Whether to save debug logs to logs/ directory
+        provider: LLM provider to use ("anthropic" or "openai")
 
     Returns:
         UnwrappedResult - always succeeds, may have degraded output
@@ -277,11 +301,16 @@ def generate_unwrapped_with_fallback(
         logger.info("Offline mode requested")
         return generate_unwrapped_offline(conversation, stats)
 
-    # Check for API key early
+    # Check for API key early based on provider
     import os
-    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if provider == PROVIDER_OPENAI:
+        env_key = "OPENAI_API_KEY"
+    else:
+        env_key = "ANTHROPIC_API_KEY"
+
+    effective_key = api_key or os.environ.get(env_key)
     if not effective_key:
-        logger.warning("No API key available, using offline mode")
+        logger.warning(f"No {env_key} available, using offline mode")
         _progress(PipelineStage.PATTERNS, "No API key - using offline mode...")
         return generate_unwrapped_offline(conversation, stats)
 
@@ -293,6 +322,7 @@ def generate_unwrapped_with_fallback(
             api_key=api_key,
             progress_callback=progress_callback,
             enable_logging=enable_logging,
+            provider=provider,
         )
     except ProviderError as e:
         logger.error(f"Provider error: {e}")
@@ -304,9 +334,9 @@ def generate_unwrapped_with_fallback(
         return result
     except EvidenceError as e:
         logger.warning(f"Evidence gathering failed: {e}")
-        # Try without evidence (Sonnet with patterns only)
+        # Try without evidence (synthesis model with patterns only)
         return _generate_without_evidence(
-            conversation, stats, api_key, progress_callback, str(e)
+            conversation, stats, api_key, progress_callback, str(e), provider
         )
     except SynthesisError as e:
         logger.error(f"Synthesis failed: {e}")
@@ -329,10 +359,11 @@ def _generate_without_evidence(
     api_key: Optional[str],
     progress_callback: Optional[ProgressCallback],
     evidence_error: str,
+    provider_name: str = PROVIDER_ANTHROPIC,
 ) -> UnwrappedResult:
-    """Generate awards using Sonnet but without Haiku evidence.
+    """Generate awards using synthesis model but without evidence.
 
-    Used when Haiku fails but we still want to try Sonnet.
+    Used when evidence gathering fails but we still want to try synthesis.
     """
     def _progress(stage: PipelineStage, message: str, current: int = 0, total: int = 0):
         if progress_callback:
@@ -344,10 +375,16 @@ def _generate_without_evidence(
     _progress(PipelineStage.PATTERNS, "Detecting patterns (evidence gathering failed)...")
     patterns = detect_all_patterns(conversation, stats)
 
-    # Try Sonnet without evidence
+    # Try synthesis model without evidence
     try:
-        provider = AnthropicProvider(api_key=api_key)
-        sonnet_provider = provider.with_model(SONNET_MODEL)
+        if provider_name == PROVIDER_OPENAI:
+            base_provider = OpenAIProvider(api_key=api_key)
+            synthesis_provider = base_provider.with_model(GPT_MAIN_MODEL)
+            model_name = "gpt-main-only"
+        else:
+            base_provider = AnthropicProvider(api_key=api_key)
+            synthesis_provider = base_provider.with_model(SONNET_MODEL)
+            model_name = "sonnet-only"
 
         _progress(PipelineStage.SYNTHESIS, "Generating awards (without evidence)...")
 
@@ -362,7 +399,7 @@ def _generate_without_evidence(
 
         awards, response, input_tokens, output_tokens = generate_awards(
             prompt=prompt,
-            provider=sonnet_provider,
+            provider=synthesis_provider,
             participants=participants,
             max_retries=1,
         )
@@ -373,7 +410,7 @@ def _generate_without_evidence(
             awards=awards,
             patterns_used=patterns,
             evidence=None,
-            model_used="sonnet-only",
+            model_used=model_name,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             success=True,
@@ -381,7 +418,7 @@ def _generate_without_evidence(
         )
 
     except Exception as e:
-        logger.error(f"Sonnet also failed: {e}")
+        logger.error(f"Synthesis also failed: {e}")
         # Ultimate fallback
         result = generate_unwrapped_offline(conversation, stats)
         result.error = f"Evidence: {evidence_error}; Synthesis: {e}"

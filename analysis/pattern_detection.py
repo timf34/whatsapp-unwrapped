@@ -124,6 +124,11 @@ def detect_all_patterns(
         patterns.append(pattern)
     patterns.extend(_detect_question_asker(user_messages).values())
 
+    # Group-specific patterns (only for 3+ participants)
+    participants = list(stats.basic.messages_per_person.keys())
+    if len(participants) > 2:
+        patterns.extend(_detect_group_roles(user_messages, stats))
+
     # Filter by strength and sort
     patterns = [p for p in patterns if p.strength >= MIN_PATTERN_STRENGTH]
     patterns.sort(key=lambda p: p.strength, reverse=True)
@@ -877,5 +882,366 @@ def _detect_question_asker(messages: list[Message]) -> dict[str, DetectedPattern
             strength=strength,
             description=f"Asks questions {round(question_ratio * 100)}% of the time ({questions} questions)",
         )
+
+    return patterns
+
+
+# =============================================================================
+# Group Role Detectors (for 3+ participants)
+# =============================================================================
+
+
+def _detect_group_roles(messages: list[Message], stats: Statistics) -> list[DetectedPattern]:
+    """Detect group roles/archetypes for group chats.
+
+    Only called when there are 3+ participants.
+    """
+    patterns = []
+
+    # Collect individual role detections
+    patterns.extend(_detect_the_ghost(messages, stats))
+    patterns.extend(_detect_the_organizer(messages))
+    patterns.extend(_detect_the_media_enthusiast(messages))
+    patterns.extend(_detect_the_thread_killer(messages))
+    patterns.extend(_detect_the_resurrector(messages))
+    patterns.extend(_detect_the_reactor(messages))
+
+    return patterns
+
+
+def _detect_the_ghost(messages: list[Message], stats: Statistics) -> list[DetectedPattern]:
+    """Detect 'The Ghost' - someone with very low message count relative to others.
+
+    The person who reads everything but barely contributes.
+    """
+    patterns = []
+
+    msg_counts = stats.basic.messages_per_person
+    total_messages = stats.basic.total_messages
+
+    if total_messages < 100:
+        return patterns
+
+    # Calculate average message share
+    num_participants = len(msg_counts)
+    avg_share = 100 / num_participants  # Expected % if everyone contributed equally
+
+    for person, count in msg_counts.items():
+        share = (count / total_messages) * 100
+
+        # Ghost: has less than 1/4 of expected share, and that's notable
+        # e.g., in a 5-person chat, expected is 20%, ghost has <5%
+        if share < avg_share * 0.25 and share < 10 and count >= 3:
+            # But they're still in the chat, so they're lurking
+            strength = min(1.0, (avg_share - share) / avg_share)
+
+            patterns.append(DetectedPattern(
+                pattern_type="group_role_ghost",
+                person=person,
+                frequency=count,
+                evidence=[{
+                    "message_count": count,
+                    "share_percent": round(share, 1),
+                    "expected_share": round(avg_share, 1),
+                }],
+                strength=strength,
+                description=f"The Ghost: {count} messages ({round(share, 1)}% of chat). Reads everything, says almost nothing.",
+            ))
+
+    return patterns
+
+
+def _detect_the_organizer(messages: list[Message]) -> list[DetectedPattern]:
+    """Detect 'The Organizer' - starts planning threads, coordinates the group."""
+    patterns = {}
+
+    # Patterns that suggest organizing/planning
+    organizing_patterns = [
+        re.compile(r"\b(should we|shall we|let's|lets)\b", re.IGNORECASE),
+        re.compile(r"\b(when (can|are|is|should)|what time)\b", re.IGNORECASE),
+        re.compile(r"\b(who('s| is) (coming|in|down|free))\b", re.IGNORECASE),
+        re.compile(r"\b(are (we|you|people) (still|coming|meeting))\b", re.IGNORECASE),
+        re.compile(r"\b(plan|plans|planning|organize|schedule)\b", re.IGNORECASE),
+        re.compile(r"\b(where (should|are) we)\b", re.IGNORECASE),
+        re.compile(r"\b(anyone (want|free|down|up for))\b", re.IGNORECASE),
+    ]
+
+    organize_counts: dict[str, int] = defaultdict(int)
+    organize_examples: dict[str, list[str]] = defaultdict(list)
+
+    for msg in messages:
+        if not msg.sender:
+            continue
+
+        for pattern in organizing_patterns:
+            if pattern.search(msg.text):
+                organize_counts[msg.sender] += 1
+                if len(organize_examples[msg.sender]) < 5:
+                    organize_examples[msg.sender].append(msg.text[:80])
+                break  # Only count once per message
+
+    for person, count in organize_counts.items():
+        if count < 5:  # Need decent organizing activity
+            continue
+
+        strength = min(1.0, count / 30)
+
+        patterns[person] = DetectedPattern(
+            pattern_type="group_role_organizer",
+            person=person,
+            frequency=count,
+            evidence=[{
+                "organize_count": count,
+                "examples": organize_examples[person][:3],
+            }],
+            strength=strength,
+            description=f"The Organizer: Started {count} planning/coordination threads. The group's unofficial project manager.",
+        )
+
+    return list(patterns.values())
+
+
+def _detect_the_media_enthusiast(messages: list[Message]) -> list[DetectedPattern]:
+    """Detect media enthusiasts - GIF masters, voice note novelists, etc."""
+    patterns = []
+
+    media_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    total_messages_per_person: dict[str, int] = defaultdict(int)
+
+    for msg in messages:
+        if not msg.sender:
+            continue
+
+        total_messages_per_person[msg.sender] += 1
+        text_lower = msg.text.lower()
+
+        # Detect media types from WhatsApp placeholders
+        if "voice message" in text_lower or "audio omitted" in text_lower:
+            media_counts[msg.sender]["voice_notes"] += 1
+        elif "gif omitted" in text_lower:
+            media_counts[msg.sender]["gifs"] += 1
+        elif "sticker omitted" in text_lower:
+            media_counts[msg.sender]["stickers"] += 1
+        elif "image omitted" in text_lower or "photo omitted" in text_lower:
+            media_counts[msg.sender]["images"] += 1
+        elif "video omitted" in text_lower:
+            media_counts[msg.sender]["videos"] += 1
+
+    for person, counts in media_counts.items():
+        total_media = sum(counts.values())
+        total_msgs = total_messages_per_person[person]
+
+        if total_media < 5:
+            continue
+
+        media_ratio = total_media / total_msgs if total_msgs > 0 else 0
+
+        # Find dominant media type
+        if counts:
+            top_media, top_count = max(counts.items(), key=lambda x: x[1])
+
+            # Only interesting if they have a notable media habit
+            if top_count >= 5 and media_ratio > 0.1:
+                role_name = {
+                    "voice_notes": "The Voice Note Novelist",
+                    "gifs": "The GIF Diplomat",
+                    "stickers": "The Sticker Spammer",
+                    "images": "The Photographer",
+                    "videos": "The Director",
+                }.get(top_media, "The Media Enthusiast")
+
+                strength = min(1.0, top_count / 25)
+
+                patterns.append(DetectedPattern(
+                    pattern_type=f"group_role_media_{top_media}",
+                    person=person,
+                    frequency=top_count,
+                    evidence=[{
+                        "media_type": top_media,
+                        "count": top_count,
+                        "total_media": total_media,
+                        "media_ratio": round(media_ratio * 100, 1),
+                    }],
+                    strength=strength,
+                    description=f"{role_name}: Sent {top_count} {top_media.replace('_', ' ')}. {round(media_ratio * 100)}% of their messages are media.",
+                ))
+
+    return patterns
+
+
+def _detect_the_thread_killer(messages: list[Message]) -> list[DetectedPattern]:
+    """Detect 'The Thread Killer' - person whose messages often end conversations.
+
+    Someone where the chat just... stops after they speak.
+    """
+    patterns = []
+
+    if len(messages) < 50:
+        return patterns
+
+    # Define a conversation gap (e.g., 4+ hours of silence after a message)
+    SILENCE_THRESHOLD_HOURS = 4
+
+    last_before_silence: dict[str, int] = defaultdict(int)
+    total_gaps = 0
+
+    for i in range(len(messages) - 1):
+        current_msg = messages[i]
+        next_msg = messages[i + 1]
+
+        if not current_msg.sender:
+            continue
+
+        # Calculate time gap to next message
+        time_diff = (next_msg.timestamp - current_msg.timestamp).total_seconds() / 3600
+
+        if time_diff >= SILENCE_THRESHOLD_HOURS:
+            last_before_silence[current_msg.sender] += 1
+            total_gaps += 1
+
+    if total_gaps < 5:
+        return patterns
+
+    # Find who kills threads most relative to their message share
+    msg_counts = defaultdict(int)
+    for msg in messages:
+        if msg.sender:
+            msg_counts[msg.sender] += 1
+
+    for person, kill_count in last_before_silence.items():
+        if kill_count < 3:
+            continue
+
+        # Calculate kill rate relative to message share
+        msg_count = msg_counts[person]
+        expected_kills = (msg_count / len(messages)) * total_gaps
+        kill_ratio = kill_count / expected_kills if expected_kills > 0 else 0
+
+        # Only interesting if they kill threads more than expected
+        if kill_ratio > 1.5 and kill_count >= 5:
+            strength = min(1.0, (kill_ratio - 1) / 2)
+
+            patterns.append(DetectedPattern(
+                pattern_type="group_role_thread_killer",
+                person=person,
+                frequency=kill_count,
+                evidence=[{
+                    "thread_kills": kill_count,
+                    "expected": round(expected_kills, 1),
+                    "kill_ratio": round(kill_ratio, 2),
+                }],
+                strength=strength,
+                description=f"The Thread Killer: Last message before silence {kill_count} times. The chat just... stops.",
+            ))
+
+    return patterns
+
+
+def _detect_the_resurrector(messages: list[Message]) -> list[DetectedPattern]:
+    """Detect 'The Resurrector' - person who revives dead threads."""
+    patterns = {}
+
+    # Patterns that suggest reviving old threads
+    resurrect_patterns = [
+        re.compile(r"\b(just saw|sorry.{0,10}missed|late.{0,10}but)\b", re.IGNORECASE),
+        re.compile(r"\b(wait.{0,10}(what|this))\b", re.IGNORECASE),
+        re.compile(r"\b(going back to|about.{0,10}earlier|re:)\b", re.IGNORECASE),
+        re.compile(r"\b(sorry.{0,10}late.{0,10}(to|reply))\b", re.IGNORECASE),
+        re.compile(r"^\^+", re.MULTILINE),  # "^" or "^^" referring to above
+    ]
+
+    resurrect_counts: dict[str, int] = defaultdict(int)
+    resurrect_examples: dict[str, list[str]] = defaultdict(list)
+
+    for msg in messages:
+        if not msg.sender:
+            continue
+
+        for pattern in resurrect_patterns:
+            if pattern.search(msg.text):
+                resurrect_counts[msg.sender] += 1
+                if len(resurrect_examples[msg.sender]) < 5:
+                    resurrect_examples[msg.sender].append(msg.text[:60])
+                break
+
+    for person, count in resurrect_counts.items():
+        if count < 4:
+            continue
+
+        strength = min(1.0, count / 20)
+
+        patterns[person] = DetectedPattern(
+            pattern_type="group_role_resurrector",
+            person=person,
+            frequency=count,
+            evidence=[{
+                "resurrect_count": count,
+                "examples": resurrect_examples[person][:3],
+            }],
+            strength=strength,
+            description=f"The Resurrector: Revived {count} dead threads. 'Wait, sorry, just saw this...'",
+        )
+
+    return list(patterns.values())
+
+
+def _detect_the_reactor(messages: list[Message]) -> list[DetectedPattern]:
+    """Detect 'The Reactor' - person who mostly sends short reactions.
+
+    Someone whose contribution is mainly "haha", "lol", single emojis, "nice", etc.
+    """
+    patterns = []
+
+    # Reaction patterns - very short, low-effort responses
+    reaction_patterns = [
+        re.compile(r"^(ha)+$", re.IGNORECASE),
+        re.compile(r"^l(o)+l$", re.IGNORECASE),
+        re.compile(r"^lmao$", re.IGNORECASE),
+        re.compile(r"^(nice|noice|hehe|true|same|mood|fair|bet|facts|word|dead|omg|wow|yep|yup|nope|yes|no|ok|okay|yeah|yea|nah|sure)$", re.IGNORECASE),
+        re.compile(r"^[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0]+$"),  # Just emojis
+    ]
+
+    reaction_counts: dict[str, int] = defaultdict(int)
+    total_counts: dict[str, int] = defaultdict(int)
+
+    for msg in messages:
+        if not msg.sender:
+            continue
+
+        total_counts[msg.sender] += 1
+        text_stripped = msg.text.strip()
+
+        # Check if it's a reaction
+        if len(text_stripped) <= 15:  # Short message
+            for pattern in reaction_patterns:
+                if pattern.match(text_stripped):
+                    reaction_counts[msg.sender] += 1
+                    break
+
+    for person in reaction_counts:
+        reactions = reaction_counts[person]
+        total = total_counts[person]
+
+        if reactions < 10:
+            continue
+
+        reaction_ratio = reactions / total if total > 0 else 0
+
+        # Only interesting if >40% of their messages are reactions
+        if reaction_ratio > 0.4:
+            strength = min(1.0, reaction_ratio)
+
+            patterns.append(DetectedPattern(
+                pattern_type="group_role_reactor",
+                person=person,
+                frequency=reactions,
+                evidence=[{
+                    "reaction_count": reactions,
+                    "total_messages": total,
+                    "reaction_ratio": round(reaction_ratio * 100, 1),
+                }],
+                strength=strength,
+                description=f"The Reactor: {reactions} messages are just reactions ({round(reaction_ratio * 100)}%). Contributing the vibes, not the content.",
+            ))
 
     return patterns

@@ -116,7 +116,14 @@ Examples:
     parser.add_argument(
         "--unwrapped",
         action="store_true",
-        help="Generate AI-powered 'Unwrapped' awards (requires ANTHROPIC_API_KEY)",
+        help="Generate AI-powered 'Unwrapped' awards (requires API key)",
+    )
+
+    parser.add_argument(
+        "--provider",
+        choices=["anthropic", "openai"],
+        default="anthropic",
+        help="LLM provider to use: anthropic (default) or openai",
     )
 
     parser.add_argument(
@@ -139,6 +146,7 @@ def run_unwrapped(
     stats: Statistics,
     offline: bool = False,
     verbose: bool = False,
+    provider: str = "anthropic",
 ) -> tuple[Optional[UnwrappedResult], Optional[str]]:
     """Run the Unwrapped pipeline.
 
@@ -147,6 +155,7 @@ def run_unwrapped(
         stats: Computed statistics
         offline: Force offline mode
         verbose: Show progress
+        provider: LLM provider to use ("anthropic" or "openai")
 
     Returns:
         Tuple of (UnwrappedResult or None, log_path or None)
@@ -158,7 +167,8 @@ def run_unwrapped(
     if offline:
         print("Generating Unwrapped (offline mode)...")
     else:
-        print("Generating Unwrapped...")
+        provider_name = "OpenAI GPT" if provider == "openai" else "Anthropic Claude"
+        print(f"Generating Unwrapped with {provider_name}...")
 
     def progress_callback(update: ProgressUpdate) -> None:
         if not verbose:
@@ -184,6 +194,7 @@ def run_unwrapped(
             offline=offline,
             progress_callback=progress_callback if verbose else None,
             enable_logging=not offline,  # Only log when using LLM
+            provider=provider,
         )
 
         if result.success:
@@ -366,7 +377,7 @@ def main() -> int:
         unwrapped_result = None
         if args.unwrapped:
             unwrapped_result, log_path = run_unwrapped(
-                chat, stats, offline=args.offline, verbose=args.verbose
+                chat, stats, offline=args.offline, verbose=args.verbose, provider=args.provider
             )
 
             # Re-export JSON with unwrapped results
