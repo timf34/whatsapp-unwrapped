@@ -44,7 +44,7 @@ export interface Award {
 
 export interface Highlights {
   notableQuotes?: Quote[];
-  insideJokes?: string[];
+  insideJokes?: InsideJoke[];
   dynamics?: string[];
   funnyMoments?: string[];
   contradictions?: Contradiction[];
@@ -54,18 +54,30 @@ export interface Highlights {
 export interface Quote {
   text: string;
   author: string;
-  context?: string;
+  context?: string;  // The witty commentary about the quote
+}
+
+export interface InsideJoke {
+  reference: string;
+  explanation: string;
 }
 
 export interface Contradiction {
   person: string;
   says: string;
   does: string;
+  punchline?: string;
 }
 
 export interface Exchange {
   context: string;
+  exchange?: ExchangeMessage[];
   punchline: string;
+}
+
+export interface ExchangeMessage {
+  sender: string;
+  text: string;
 }
 
 // Message types for the chat UI

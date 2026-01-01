@@ -6,6 +6,12 @@ import ChatHeader from "@/components/ChatHeader";
 import DateBadge from "@/components/DateBadge";
 import Leaderboard from "@/components/Leaderboard";
 import AwardCard from "@/components/AwardCard";
+import QuoteCard from "@/components/QuoteCard";
+import InsideJokeCard from "@/components/InsideJokeCard";
+import FunnyMomentCard from "@/components/FunnyMomentCard";
+import DynamicCard from "@/components/DynamicCard";
+import ContradictionCard from "@/components/ContradictionCard";
+import ExchangeCard from "@/components/ExchangeCard";
 import { StatGrid } from "@/components/StatCard";
 import type { UnwrappedData } from "@/lib/types";
 
@@ -59,7 +65,68 @@ const demoData: UnwrappedData = {
       quip: "Either an insomniac or just loves coffee",
     },
   ],
-  highlights: null,
+  highlights: {
+    notableQuotes: [
+      {
+        text: "I'm again feel like I'm going crazy, I could have sworn that I had 3 microwave meals left",
+        author: "Tim",
+        context: "Genuinely spiraling over missing microwave dinners like they're a crime scene",
+      },
+      {
+        text: "only dating you for pub quiz knowledge btw",
+        author: "Vita",
+        context: "Casually demoting boyfriend to trivia asset mid-conversation",
+      },
+      {
+        text: "Reminder to look at my succulent - she's not doing so well. Will ask ChatGPT",
+        author: "Tim",
+        context: "Treats dying plant like a medical emergency, immediately outsources diagnosis to AI",
+      },
+    ],
+    insideJokes: [
+      {
+        reference: "Juicy Couture campaign",
+        explanation: "Vita's persistent, affectionate effort to get Tim into Juicy Couture despite zero evidence he's interested",
+      },
+      {
+        reference: "Henry's bins",
+        explanation: "Running joke that only a girlfriend could motivate Henry to take out the trash",
+      },
+      {
+        reference: "tactical chunder",
+        explanation: "Vita explains vomiting strategy to Tim like she's teaching him a life hack; he politely declines",
+      },
+    ],
+    funnyMoments: [
+      "Tim stays up until 5:39am coding a SubstackGPT chatbot, texts Vita 'Exhausted. But fun lol' like he didn't just sabotage his own sleep schedule",
+      "Tim tries to open wine with a screwdriver and metal chopstick at poker night",
+      "Tim uninstalls Instagram at 12:47am, then at 3:23am buys a Whoop tracker",
+    ],
+    dynamics: [
+      "Vita flirts relentlessly; Tim pretends to work but keeps responding immediately",
+      "Tim sends 15+ photos from London museums at once; Vita's commentary on the selfies is longer than the exhibit descriptions",
+      "Constant playful teasing about each other's stated intentions vs. actual behavior",
+    ],
+    contradictions: [
+      {
+        person: "Tim",
+        says: "I need to fix my sleep schedule",
+        does: "Codes until 5:39am",
+        punchline: "The sleep schedule remains unfixed",
+      },
+    ],
+    bestExchanges: [
+      {
+        context: "Tim discovers a major assignment via Instagram",
+        exchange: [
+          { sender: "Tim", text: "Lmao that thing was 50% of my grade hahahahaha" },
+          { sender: "Vita", text: "WHAT" },
+          { sender: "Tim", text: "I have 35 minutes to record a 20-minute video" },
+        ],
+        punchline: "He made it, somehow",
+      },
+    ],
+  },
 };
 
 export default function Home() {
@@ -241,22 +308,146 @@ export default function Home() {
             </>
           )}
 
-          {/* Act 7: Sign-off */}
-          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.3}>
-            That&apos;s your Unwrapped! 🎉
-          </ChatBubble>
+          {/* Calculate delay offset for highlight sections */}
+          {(() => {
+            let currentDelay = 3.6 + data.awards.length * 0.3 + 0.3;
+            const highlights = data.highlights;
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.45} showTail={false}>
-            Share it with the group and see if they agree with the awards 😏
-          </ChatBubble>
+            return (
+              <>
+                {/* Act 7: Notable Quotes */}
+                {highlights?.notableQuotes && highlights.notableQuotes.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:06" delay={currentDelay}>
+                      Wait, I found some iconic quotes... 💬
+                    </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.6}>
-            This was amazing, thanks! 🙌
-          </ChatBubble>
+                    <ChatBubble sender="user" timestamp="12:06" delay={currentDelay + 0.15}>
+                      Ooh spill! 👀
+                    </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.75}>
-            See you next year! 👋
-          </ChatBubble>
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.notableQuotes.slice(0, 8).map((quote, i) => (
+                        <QuoteCard key={i} quote={quote} delay={currentDelay + 0.3 + i * 0.2} />
+                      ))}
+                    </div>
+
+                    {(() => { currentDelay += 0.3 + highlights.notableQuotes.slice(0, 8).length * 0.2 + 0.3; return null; })()}
+                  </>
+                )}
+
+                {/* Act 8: Inside Jokes */}
+                {highlights?.insideJokes && highlights.insideJokes.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:07" delay={currentDelay}>
+                      And your inside jokes... only you two will get these 🤫
+                    </ChatBubble>
+
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.insideJokes.slice(0, 6).map((joke, i) => (
+                        <InsideJokeCard key={i} joke={joke} delay={currentDelay + 0.15 + i * 0.2} />
+                      ))}
+                    </div>
+
+                    {(() => { currentDelay += 0.15 + highlights.insideJokes.slice(0, 6).length * 0.2 + 0.3; return null; })()}
+                  </>
+                )}
+
+                {/* Act 9: Funny Moments */}
+                {highlights?.funnyMoments && highlights.funnyMoments.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:08" delay={currentDelay}>
+                      Some moments that made me laugh... 😂
+                    </ChatBubble>
+
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.funnyMoments.slice(0, 8).map((moment, i) => (
+                        <FunnyMomentCard key={i} moment={moment} delay={currentDelay + 0.15 + i * 0.15} />
+                      ))}
+                    </div>
+
+                    <ChatBubble sender="user" timestamp="12:08" delay={currentDelay + 0.15 + highlights.funnyMoments.slice(0, 8).length * 0.15 + 0.2}>
+                      I&apos;m crying 😭💀
+                    </ChatBubble>
+
+                    {(() => { currentDelay += 0.15 + highlights.funnyMoments.slice(0, 8).length * 0.15 + 0.4; return null; })()}
+                  </>
+                )}
+
+                {/* Act 10: Your Dynamic */}
+                {highlights?.dynamics && highlights.dynamics.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:09" delay={currentDelay}>
+                      Here&apos;s what I noticed about your dynamic... 💫
+                    </ChatBubble>
+
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.dynamics.slice(0, 6).map((dynamic, i) => (
+                        <DynamicCard key={i} dynamic={dynamic} delay={currentDelay + 0.15 + i * 0.15} />
+                      ))}
+                    </div>
+
+                    {(() => { currentDelay += 0.15 + highlights.dynamics.slice(0, 6).length * 0.15 + 0.3; return null; })()}
+                  </>
+                )}
+
+                {/* Act 11: Contradictions */}
+                {highlights?.contradictions && highlights.contradictions.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:10" delay={currentDelay}>
+                      And some... contradictions I noticed 🤔
+                    </ChatBubble>
+
+                    <ChatBubble sender="user" timestamp="12:10" delay={currentDelay + 0.15}>
+                      Uh oh...
+                    </ChatBubble>
+
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.contradictions.slice(0, 5).map((contradiction, i) => (
+                        <ContradictionCard key={i} contradiction={contradiction} delay={currentDelay + 0.3 + i * 0.25} />
+                      ))}
+                    </div>
+
+                    {(() => { currentDelay += 0.3 + highlights.contradictions.slice(0, 5).length * 0.25 + 0.3; return null; })()}
+                  </>
+                )}
+
+                {/* Act 12: Best Exchanges */}
+                {highlights?.bestExchanges && highlights.bestExchanges.length > 0 && (
+                  <>
+                    <ChatBubble sender="bot" timestamp="12:11" delay={currentDelay}>
+                      And finally, some of your best back-and-forths... 🎭
+                    </ChatBubble>
+
+                    <div className="px-[5%] md:px-[63px]">
+                      {highlights.bestExchanges.slice(0, 4).map((exchange, i) => (
+                        <ExchangeCard key={i} exchange={exchange} delay={currentDelay + 0.15 + i * 0.3} />
+                      ))}
+                    </div>
+
+                    {(() => { currentDelay += 0.15 + highlights.bestExchanges.slice(0, 4).length * 0.3 + 0.3; return null; })()}
+                  </>
+                )}
+
+                {/* Final Sign-off */}
+                <ChatBubble sender="bot" timestamp="12:12" delay={currentDelay}>
+                  That&apos;s your Unwrapped! 🎉
+                </ChatBubble>
+
+                <ChatBubble sender="bot" timestamp="12:12" delay={currentDelay + 0.15} showTail={false}>
+                  Share it with the group and see if they agree with the awards 😏
+                </ChatBubble>
+
+                <ChatBubble sender="user" timestamp="12:12" delay={currentDelay + 0.3}>
+                  This was amazing, thanks! 🙌
+                </ChatBubble>
+
+                <ChatBubble sender="bot" timestamp="12:12" delay={currentDelay + 0.45}>
+                  See you next year! 👋
+                </ChatBubble>
+              </>
+            );
+          })()}
 
           {/* Bottom padding for scroll */}
           <div className="h-8" />
