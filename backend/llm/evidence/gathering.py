@@ -102,16 +102,19 @@ def gather_all_evidence(
     chunks: list[ConversationChunk],
     provider: LLMProvider,
     progress_callback: Callable[[int, int], None] | None = None,
-    max_workers: int = 5,
+    max_workers: int = 2,
     session_logger: Optional[Any] = None,
 ) -> tuple[list[EvidencePacket], int, int]:
-    """Process all chunks and gather evidence with parallel processing.
+    """Process all chunks and gather evidence with rate-limited processing.
+
+    Uses batched processing to stay under API rate limits (50,000 tokens/minute).
+    Each chunk uses ~1500 tokens, so we process in small batches with delays.
 
     Args:
         chunks: All conversation chunks
         provider: LLM provider (should be Haiku)
         progress_callback: Optional callback for progress updates (current, total)
-        max_workers: Maximum parallel requests (default 5 to respect rate limits)
+        max_workers: Maximum parallel requests per batch (default 2)
         session_logger: Optional SessionLogger for debugging
 
     Returns:
@@ -121,7 +124,8 @@ def gather_all_evidence(
         # For small numbers, process sequentially
         return _gather_sequential(chunks, provider, progress_callback, session_logger)
 
-    return _gather_parallel(chunks, provider, progress_callback, max_workers, session_logger)
+    # For larger numbers, use rate-limited batched processing
+    return _gather_rate_limited(chunks, provider, progress_callback, max_workers, session_logger)
 
 
 def _gather_sequential(
@@ -153,6 +157,97 @@ def _gather_sequential(
 
         if progress_callback:
             progress_callback(i + 1, len(chunks))
+
+    return packets, total_input_tokens, total_output_tokens
+
+
+def _gather_rate_limited(
+    chunks: list[ConversationChunk],
+    provider: LLMProvider,
+    progress_callback: Callable[[int, int], None] | None,
+    max_workers: int,
+    session_logger: Optional[Any],
+) -> tuple[list[EvidencePacket], int, int]:
+    """Process chunks in batches with rate limiting.
+
+    Processes chunks in small batches with delays between them to stay
+    under the API rate limit (50,000 tokens/minute for Anthropic).
+    Each chunk uses ~1500-2000 tokens, so we process ~10 chunks per batch
+    with a delay between batches.
+    """
+    # Configuration for rate limiting
+    BATCH_SIZE = 5  # Process 5 chunks at a time
+    DELAY_BETWEEN_BATCHES = 12.0  # Seconds to wait between batches
+
+    results: dict[int, ChunkResult] = {}
+    total_input_tokens = 0
+    total_output_tokens = 0
+    completed_count = 0
+    count_lock = Lock()
+
+    def process_chunk(chunk_data: tuple[int, ConversationChunk]) -> ChunkResult:
+        idx, chunk = chunk_data
+        return gather_evidence_from_chunk(chunk, provider, idx)
+
+    # Split chunks into batches
+    batches = [
+        list(enumerate(chunks))[i:i + BATCH_SIZE]
+        for i in range(0, len(chunks), BATCH_SIZE)
+    ]
+
+    logger.info(f"Processing {len(chunks)} chunks in {len(batches)} batches (batch size: {BATCH_SIZE})")
+
+    for batch_idx, batch in enumerate(batches):
+        # Add delay between batches (not before first batch)
+        if batch_idx > 0:
+            logger.info(f"Rate limiting: waiting {DELAY_BETWEEN_BATCHES}s before batch {batch_idx + 1}/{len(batches)}")
+            time.sleep(DELAY_BETWEEN_BATCHES)
+
+        # Process batch in parallel with limited workers
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {
+                executor.submit(process_chunk, (idx, chunk)): idx
+                for idx, chunk in batch
+            }
+
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+
+                try:
+                    result = future.result()
+                    results[idx] = result
+
+                    if result.response:
+                        with count_lock:
+                            total_input_tokens += result.response.input_tokens
+                            total_output_tokens += result.response.output_tokens
+
+                except Exception as e:
+                    results[idx] = ChunkResult(
+                        chunk_index=idx,
+                        packet=None,
+                        response=None,
+                        error=str(e),
+                    )
+
+                # Update progress
+                with count_lock:
+                    completed_count += 1
+                    if progress_callback:
+                        progress_callback(completed_count, len(chunks))
+
+    # Build ordered packet list
+    packets: list[EvidencePacket] = []
+    for i in range(len(chunks)):
+        result = results.get(i)
+        if result and result.packet:
+            packets.append(result.packet)
+            if session_logger:
+                session_logger.log_chunk_evidence(i, result.packet, result.raw_data)
+        else:
+            error = result.error if result else "Unknown error"
+            logger.warning(f"Failed to process chunk {i + 1}/{len(chunks)}: {error}")
+            packets.append(_create_empty_packet(chunks[i].start_idx, chunks[i].end_idx))
 
     return packets, total_input_tokens, total_output_tokens
 

@@ -132,11 +132,21 @@ Examples:
         help="Use offline mode for Unwrapped (pattern-based awards, no LLM)",
     )
 
+    parser.add_argument(
+        "--export-frontend",
+        action="store_true",
+        help="Export JSON for frontend (creates {filename}_frontend.json)",
+    )
+
     args = parser.parse_args()
 
     # Validate: --offline requires --unwrapped
     if args.offline and not args.unwrapped:
         parser.error("--offline requires --unwrapped")
+
+    # Validate: --export-frontend requires --unwrapped
+    if args.export_frontend and not args.unwrapped:
+        parser.error("--export-frontend requires --unwrapped (for awards)")
 
     return args
 
@@ -384,6 +394,13 @@ def main() -> int:
             if unwrapped_result:
                 from output.json_export import export_json
                 export_json(stats, output_dir, unwrapped_result)
+
+            # Export frontend JSON if requested
+            if args.export_frontend and unwrapped_result:
+                from output.frontend_export import export_frontend_json
+                frontend_path = export_frontend_json(chat, stats, unwrapped_result)
+                print(f"\nFrontend JSON exported: {frontend_path}")
+                print("  Copy this file to frontend/public/data/ to use with the web UI")
 
         # Summary
         print_summary(stats, output_paths, unwrapped_result)
