@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ChatBubble from "@/components/ChatBubble";
 import ChatHeader from "@/components/ChatHeader";
 import DateBadge from "@/components/DateBadge";
@@ -8,11 +9,11 @@ import AwardCard from "@/components/AwardCard";
 import { StatGrid } from "@/components/StatCard";
 import type { UnwrappedData } from "@/lib/types";
 
-// Demo data - in production this would come from a JSON file or API
+// Demo data used when no JSON file is available
 const demoData: UnwrappedData = {
-  id: "fitz-2024-unwrapped",
-  chatName: "Fitzwilliam Group Chat",
-  generatedAt: "2024-12-31T12:00:00Z",
+  id: "demo",
+  chatName: "Demo Group Chat",
+  generatedAt: new Date().toISOString(),
   overview: {
     totalMessages: 793,
     totalDays: 19,
@@ -58,10 +59,52 @@ const demoData: UnwrappedData = {
       quip: "Either an insomniac or just loves coffee",
     },
   ],
+  highlights: null,
 };
 
 export default function Home() {
-  const data = demoData;
+  const [data, setData] = useState<UnwrappedData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Try to load from unwrapped.json first
+        const response = await fetch("/data/unwrapped.json");
+        if (response.ok) {
+          const jsonData = await response.json();
+          setData(jsonData);
+        } else {
+          // Fall back to demo data
+          console.log("No unwrapped.json found, using demo data");
+          setData(demoData);
+        }
+      } catch (err) {
+        console.log("Error loading data, using demo:", err);
+        setData(demoData);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#e4dcd4]">
+        <div className="text-[#667781] text-lg">Loading your Unwrapped...</div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#e4dcd4]">
+        <div className="text-red-500">Failed to load data</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -85,7 +128,7 @@ export default function Home() {
         {/* Messages container */}
         <div className="relative z-10 overflow-y-auto h-[calc(100vh-60px)] py-4">
           {/* Date badge */}
-          <DateBadge text="TODAY" />
+          <DateBadge text="YOUR UNWRAPPED" />
 
           {/* Act 1: Welcome */}
           <ChatBubble sender="bot" timestamp="12:00" delay={0}>
@@ -134,7 +177,7 @@ export default function Home() {
           </div>
 
           <ChatBubble sender="bot" timestamp="12:02" delay={1.8} showTail={false}>
-            {data.leaderboard[0].name} really does love talking, huh? 😂
+            {data.leaderboard[0]?.name || "Someone"} really does love talking, huh? 😂
           </ChatBubble>
 
           <ChatBubble sender="user" timestamp="12:02" delay={1.95}>
@@ -159,51 +202,59 @@ export default function Home() {
           </ChatBubble>
 
           {/* Act 5: Fun Facts */}
-          <ChatBubble sender="bot" timestamp="12:04" delay={2.55}>
-            Want some fun facts? 🎲
-          </ChatBubble>
+          {data.funFacts.length > 0 && (
+            <>
+              <ChatBubble sender="bot" timestamp="12:04" delay={2.55}>
+                Want some fun facts? 🎲
+              </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:04" delay={2.7}>
-            Hit me!
-          </ChatBubble>
+              <ChatBubble sender="user" timestamp="12:04" delay={2.7}>
+                Hit me!
+              </ChatBubble>
 
-          {data.funFacts.map((fact, i) => (
-            <ChatBubble
-              key={i}
-              sender="bot"
-              timestamp="12:04"
-              delay={2.85 + i * 0.15}
-              showTail={i === 0}
-            >
-              {fact}
-            </ChatBubble>
-          ))}
+              {data.funFacts.slice(0, 6).map((fact, i) => (
+                <ChatBubble
+                  key={i}
+                  sender="bot"
+                  timestamp="12:04"
+                  delay={2.85 + i * 0.15}
+                  showTail={i === 0}
+                >
+                  {fact}
+                </ChatBubble>
+              ))}
+            </>
+          )}
 
           {/* Act 6: Awards */}
-          <ChatBubble sender="bot" timestamp="12:05" delay={3.6}>
-            Now for the awards... 🏆
-          </ChatBubble>
+          {data.awards.length > 0 && (
+            <>
+              <ChatBubble sender="bot" timestamp="12:05" delay={3.6}>
+                Now for the awards... 🏆
+              </ChatBubble>
 
-          <div className="px-[5%] md:px-[63px]">
-            {data.awards.map((award, i) => (
-              <AwardCard key={i} award={award} delay={3.75 + i * 0.3} />
-            ))}
-          </div>
+              <div className="px-[5%] md:px-[63px]">
+                {data.awards.map((award, i) => (
+                  <AwardCard key={i} award={award} delay={3.75 + i * 0.3} />
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Act 7: Sign-off */}
-          <ChatBubble sender="bot" timestamp="12:06" delay={4.8}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.3}>
             That&apos;s your Unwrapped! 🎉
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={4.95} showTail={false}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.45} showTail={false}>
             Share it with the group and see if they agree with the awards 😏
           </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:06" delay={5.1}>
+          <ChatBubble sender="user" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.6}>
             This was amazing, thanks! 🙌
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={5.25}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={3.6 + data.awards.length * 0.3 + 0.75}>
             See you next year! 👋
           </ChatBubble>
 

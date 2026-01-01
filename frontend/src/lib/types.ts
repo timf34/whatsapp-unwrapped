@@ -1,4 +1,5 @@
 // TypeScript types for WhatsApp Unwrapped frontend data
+// These types match the output of backend/output/frontend_export.py
 
 export interface UnwrappedData {
   id: string;
@@ -9,7 +10,7 @@ export interface UnwrappedData {
   peakTimes: PeakTimes;
   funFacts: string[];
   awards: Award[];
-  highlights?: Highlights;
+  highlights?: Highlights | null;
 }
 
 export interface Overview {
@@ -32,7 +33,6 @@ export interface PeakTimes {
   busiestHour: number;
   busiestHourFormatted: string;
   busiestDay: string;
-  heatmapData?: number[][];
 }
 
 export interface Award {
@@ -45,13 +45,27 @@ export interface Award {
 export interface Highlights {
   notableQuotes?: Quote[];
   insideJokes?: string[];
-  conversationSnippets?: string[];
+  dynamics?: string[];
+  funnyMoments?: string[];
+  contradictions?: Contradiction[];
+  bestExchanges?: Exchange[];
 }
 
 export interface Quote {
   text: string;
   author: string;
   context?: string;
+}
+
+export interface Contradiction {
+  person: string;
+  says: string;
+  does: string;
+}
+
+export interface Exchange {
+  context: string;
+  punchline: string;
 }
 
 // Message types for the chat UI
@@ -64,23 +78,5 @@ export interface ChatMessage {
   sender: MessageSender;
   timestamp: string;
   status?: MessageStatus;
-  delay?: number; // Delay before showing this message
-}
-
-// Content types that can appear in messages
-export interface StatCard {
-  type: "stat";
-  emoji: string;
-  label: string;
-  value: string | number;
-}
-
-export interface LeaderboardCard {
-  type: "leaderboard";
-  entries: LeaderboardEntry[];
-}
-
-export interface AwardMessageContent {
-  type: "award";
-  award: Award;
+  delay?: number;
 }
