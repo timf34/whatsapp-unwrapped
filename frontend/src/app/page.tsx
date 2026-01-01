@@ -64,14 +64,26 @@ export default function Home() {
   const data = demoData;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#efeae2]">
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
       <ChatHeader
         chatName={data.chatName}
         participantCount={data.overview.participantCount}
       />
 
-      <main className="flex-1 chat-background chat-scroll overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
+      {/* Chat area with background */}
+      <div className="flex-1 relative bg-[#e4dcd4]">
+        {/* Background pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "url('/assets/images/bg-chat-room.png')",
+            backgroundRepeat: "repeat",
+          }}
+        />
+
+        {/* Messages container */}
+        <div className="relative z-10 overflow-y-auto h-[calc(100vh-60px)] py-4">
           {/* Date badge */}
           <DateBadge text="TODAY" />
 
@@ -80,22 +92,22 @@ export default function Home() {
             Hey! I&apos;ve been analyzing your <strong>{data.chatName}</strong> 👋
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:00" delay={0.2}>
+          <ChatBubble sender="bot" timestamp="12:00" delay={0.15} showTail={false}>
             Ready to see what {data.overview.totalMessages.toLocaleString()} messages
             and {data.overview.totalDays} days of chatting look like?
           </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:01" delay={0.4}>
+          <ChatBubble sender="user" timestamp="12:01" delay={0.3}>
             Yes! Show me everything! 🎉
           </ChatBubble>
 
           {/* Act 2: Overview Stats */}
-          <ChatBubble sender="bot" timestamp="12:01" delay={0.6}>
+          <ChatBubble sender="bot" timestamp="12:01" delay={0.45}>
             Here&apos;s the big picture...
           </ChatBubble>
 
-          <div className="flex justify-start mb-3">
-            <div className="max-w-[90%] md:max-w-[80%]">
+          <div className="flex justify-start mb-2 px-[5%] md:px-[63px]">
+            <div className="max-w-[85%] md:max-w-[65%]">
               <StatGrid
                 stats={[
                   { emoji: "💬", value: data.overview.totalMessages.toLocaleString(), label: "messages" },
@@ -103,96 +115,102 @@ export default function Home() {
                   { emoji: "👥", value: data.overview.participantCount, label: "people" },
                   { emoji: "🔥", value: Math.round(data.overview.totalMessages / data.overview.totalDays), label: "msgs/day" },
                 ]}
-                delay={0.8}
+                delay={0.6}
               />
             </div>
           </div>
 
-          <ChatBubble sender="bot" timestamp="12:01" delay={1.2}>
+          <ChatBubble sender="bot" timestamp="12:01" delay={0.9} showTail={false}>
             That&apos;s {Math.round(data.overview.totalMessages / data.overview.totalDays)} messages per day on average! 🔥
           </ChatBubble>
 
           {/* Act 3: Leaderboard */}
-          <ChatBubble sender="bot" timestamp="12:02" delay={1.4}>
+          <ChatBubble sender="bot" timestamp="12:02" delay={1.05}>
             And the chattiest award goes to...
           </ChatBubble>
 
-          <div className="flex justify-start mb-3">
-            <Leaderboard entries={data.leaderboard} delay={1.6} />
+          <div className="flex justify-start mb-2 px-[5%] md:px-[63px]">
+            <Leaderboard entries={data.leaderboard} delay={1.2} />
           </div>
 
-          <ChatBubble sender="bot" timestamp="12:02" delay={2.2}>
+          <ChatBubble sender="bot" timestamp="12:02" delay={1.8} showTail={false}>
             {data.leaderboard[0].name} really does love talking, huh? 😂
           </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:02" delay={2.4}>
+          <ChatBubble sender="user" timestamp="12:02" delay={1.95}>
             Haha no surprise there!
           </ChatBubble>
 
           {/* Act 4: Peak Times */}
-          <ChatBubble sender="bot" timestamp="12:03" delay={2.6}>
+          <ChatBubble sender="bot" timestamp="12:03" delay={2.1}>
             When do you chat the most?
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:03" delay={2.8}>
+          <ChatBubble sender="bot" timestamp="12:03" delay={2.25} showTail={false}>
             <div className="text-center py-2">
               <div className="text-3xl mb-1">🕘</div>
-              <div className="font-bold text-lg">{data.peakTimes.busiestHourFormatted}</div>
-              <div className="text-sm text-gray-500">on {data.peakTimes.busiestDay}s</div>
+              <div className="font-semibold text-lg">{data.peakTimes.busiestHourFormatted}</div>
+              <div className="text-sm text-[#667781]">on {data.peakTimes.busiestDay}s</div>
             </div>
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:03" delay={3.0}>
+          <ChatBubble sender="bot" timestamp="12:03" delay={2.4} showTail={false}>
             Looks like {data.peakTimes.busiestHourFormatted} on {data.peakTimes.busiestDay}s is peak chaos time 💀
           </ChatBubble>
 
           {/* Act 5: Fun Facts */}
-          <ChatBubble sender="bot" timestamp="12:04" delay={3.2}>
+          <ChatBubble sender="bot" timestamp="12:04" delay={2.55}>
             Want some fun facts? 🎲
           </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:04" delay={3.4}>
+          <ChatBubble sender="user" timestamp="12:04" delay={2.7}>
             Hit me!
           </ChatBubble>
 
           {data.funFacts.map((fact, i) => (
-            <ChatBubble key={i} sender="bot" timestamp="12:04" delay={3.6 + i * 0.3}>
+            <ChatBubble
+              key={i}
+              sender="bot"
+              timestamp="12:04"
+              delay={2.85 + i * 0.15}
+              showTail={i === 0}
+            >
               {fact}
             </ChatBubble>
           ))}
 
           {/* Act 6: Awards */}
-          <ChatBubble sender="bot" timestamp="12:05" delay={5.0}>
+          <ChatBubble sender="bot" timestamp="12:05" delay={3.6}>
             Now for the awards... 🏆
           </ChatBubble>
 
-          {data.awards.map((award, i) => (
-            <AwardCard key={i} award={award} delay={5.2 + i * 0.4} />
-          ))}
+          <div className="px-[5%] md:px-[63px]">
+            {data.awards.map((award, i) => (
+              <AwardCard key={i} award={award} delay={3.75 + i * 0.3} />
+            ))}
+          </div>
 
           {/* Act 7: Sign-off */}
-          <ChatBubble sender="bot" timestamp="12:06" delay={6.8}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={4.8}>
             That&apos;s your Unwrapped! 🎉
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={7.0}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={4.95} showTail={false}>
             Share it with the group and see if they agree with the awards 😏
           </ChatBubble>
 
-          <ChatBubble sender="user" timestamp="12:06" delay={7.2}>
+          <ChatBubble sender="user" timestamp="12:06" delay={5.1}>
             This was amazing, thanks! 🙌
           </ChatBubble>
 
-          <ChatBubble sender="bot" timestamp="12:06" delay={7.4}>
+          <ChatBubble sender="bot" timestamp="12:06" delay={5.25}>
             See you next year! 👋
           </ChatBubble>
 
-          {/* Scroll indicator at bottom */}
-          <div className="text-center py-8 text-gray-400 text-sm">
-            ✨ End of Unwrapped ✨
-          </div>
+          {/* Bottom padding for scroll */}
+          <div className="h-8" />
         </div>
-      </main>
+      </div>
     </div>
   );
 }

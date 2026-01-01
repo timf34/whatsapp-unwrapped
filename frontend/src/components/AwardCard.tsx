@@ -2,7 +2,6 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import { Trophy } from "lucide-react";
 import type { Award } from "@/lib/types";
 
 interface AwardCardProps {
@@ -17,34 +16,39 @@ export default function AwardCard({ award, delay = 0 }: AwardCardProps) {
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 30, scale: 0.9 }}
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
       transition={{
         delay: delay,
-        duration: 0.5,
-        ease: [0.25, 0.46, 0.45, 0.94],
+        duration: 0.35,
+        ease: "easeOut",
       }}
-      className="flex justify-start mb-3"
+      className="mb-2"
     >
-      <div className="bg-white rounded-xl shadow-md overflow-hidden max-w-[90%] md:max-w-[75%]">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-4 py-3 flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-white" />
-          <h3 className="font-bold text-white text-sm">{award.title}</h3>
+      <div className="bg-white rounded-[7.5px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] overflow-hidden max-w-[85%] md:max-w-[65%]">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-r from-[#f6b93b] to-[#e58e26] px-4 py-2 flex items-center gap-2">
+          <span className="text-lg">🏆</span>
+          <h3 className="font-medium text-white text-[14px]">{award.title}</h3>
         </div>
 
         {/* Content */}
-        <div className="px-4 py-3">
+        <div className="p-3">
+          {/* Winner */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">🏆</span>
-            <span className="font-semibold text-gray-900">{award.recipient}</span>
+            <div className="w-8 h-8 rounded-full bg-[#dfe5e7] flex items-center justify-center text-sm">
+              👤
+            </div>
+            <span className="font-semibold text-[14px] text-[#111b21]">{award.recipient}</span>
           </div>
 
-          <p className="text-sm text-gray-700 mb-2 italic">
-            &ldquo;{award.evidence}&rdquo;
+          {/* Evidence */}
+          <p className="text-[13px] text-[#111b21] mb-2 leading-relaxed">
+            {award.evidence}
           </p>
 
-          <p className="text-sm text-gray-500">
+          {/* Quip */}
+          <p className="text-[12px] text-[#667781] italic">
             {award.quip}
           </p>
         </div>

@@ -11,6 +11,7 @@ interface ChatBubbleProps {
   timestamp: string;
   status?: MessageStatus;
   delay?: number;
+  showTail?: boolean;
 }
 
 export default function ChatBubble({
@@ -19,6 +20,7 @@ export default function ChatBubble({
   timestamp,
   status = "read",
   delay = 0,
+  showTail = true,
 }: ChatBubbleProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
@@ -28,60 +30,69 @@ export default function ChatBubble({
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-      animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{
         delay: delay,
-        duration: 0.4,
-        ease: [0.25, 0.46, 0.45, 0.94],
+        duration: 0.3,
+        ease: "easeOut",
       }}
-      className={`flex ${isBot ? "justify-start" : "justify-end"} mb-2`}
+      className={`flex ${isBot ? "justify-start" : "justify-end"} mb-[2px] px-[5%] md:px-[63px]`}
     >
       <div
         className={`
-          relative max-w-[85%] md:max-w-[70%] px-3 py-2 rounded-lg shadow-sm
+          relative max-w-[65%] px-[9px] py-[6px] pb-2
+          text-[14.2px] leading-[19px] text-[#111b21]
           ${isBot
-            ? "bg-white text-gray-900 rounded-tl-none"
-            : "bg-[#dcf8c6] text-gray-900 rounded-tr-none"
+            ? "bg-white rounded-[7.5px] rounded-tl-none"
+            : "bg-[#d9fdd3] rounded-[7.5px] rounded-tr-none"
           }
+          shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]
         `}
       >
         {/* Message tail */}
-        <div
-          className={`
-            absolute top-0 w-3 h-3
-            ${isBot
-              ? "-left-2 border-l-8 border-l-transparent border-t-8 border-t-white"
-              : "-right-2 border-r-8 border-r-transparent border-t-8 border-t-[#dcf8c6]"
-            }
-          `}
-        />
+        {showTail && (
+          <span
+            className={`
+              absolute top-0 w-0 h-0
+              ${isBot
+                ? "-left-[8px] border-t-[6px] border-t-white border-r-[6px] border-r-white border-b-[6px] border-b-transparent border-l-[6px] border-l-transparent"
+                : "-right-[8px] border-t-[6px] border-t-[#d9fdd3] border-r-[6px] border-r-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-[#d9fdd3]"
+              }
+            `}
+          />
+        )}
 
         {/* Content */}
-        <div className="text-sm leading-relaxed break-words">
+        <span className="whitespace-pre-wrap break-words">
           {children}
-        </div>
+        </span>
 
-        {/* Timestamp and status */}
-        <div className={`flex items-center gap-1 justify-end mt-1 -mb-1`}>
-          <span className="text-[11px] text-gray-500">{timestamp}</span>
+        {/* Spacer for timestamp */}
+        <span className="inline-block w-[60px] h-[11px]" />
+
+        {/* Timestamp and status - positioned at bottom right */}
+        <span className="absolute right-[7px] bottom-[6px] flex items-center gap-[3px] text-[11px] text-[#667781]">
+          {timestamp}
           {!isBot && <StatusIcon status={status} />}
-        </div>
+        </span>
       </div>
     </motion.div>
   );
 }
 
 function StatusIcon({ status }: { status: MessageStatus }) {
+  const baseClass = "w-[16px] h-[11px] ml-[2px]";
+
   switch (status) {
     case "sending":
-      return <Check className="w-4 h-4 text-gray-400" />;
+      return <Check className={`${baseClass} text-[#667781]`} />;
     case "sent":
-      return <Check className="w-4 h-4 text-gray-500" />;
+      return <Check className={`${baseClass} text-[#667781]`} />;
     case "delivered":
-      return <CheckCheck className="w-4 h-4 text-gray-500" />;
+      return <CheckCheck className={`${baseClass} text-[#667781]`} />;
     case "read":
-      return <CheckCheck className="w-4 h-4 text-blue-500" />;
+      return <CheckCheck className={`${baseClass} text-[#53bdeb]`} />;
     default:
       return null;
   }

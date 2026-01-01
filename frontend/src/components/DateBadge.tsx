@@ -21,9 +21,9 @@ export default function DateBadge({ text, delay = 0 }: DateBadgeProps) {
         delay: delay,
         duration: 0.3,
       }}
-      className="flex justify-center my-4"
+      className="flex justify-center my-3"
     >
-      <span className="bg-white/90 backdrop-blur-sm text-gray-600 text-xs font-medium px-3 py-1 rounded-lg shadow-sm">
+      <span className="bg-[#e1f2fa] text-[#111b21] text-[12.5px] font-normal px-3 py-[6px] rounded-[7.5px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
         {text}
       </span>
     </motion.div>

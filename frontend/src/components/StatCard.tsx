@@ -21,14 +21,14 @@ export default function StatCard({ emoji, value, label, delay = 0 }: StatCardPro
       animate={isInView ? { opacity: 1, scale: 1 } : {}}
       transition={{
         delay: delay,
-        duration: 0.4,
-        ease: [0.25, 0.46, 0.45, 0.94],
+        duration: 0.3,
+        ease: "easeOut",
       }}
-      className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 text-center shadow-sm border border-emerald-100"
+      className="bg-white rounded-lg p-3 text-center shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]"
     >
-      <div className="text-3xl mb-1">{emoji}</div>
-      <div className="text-2xl font-bold text-emerald-700">{value}</div>
-      <div className="text-sm text-gray-600">{label}</div>
+      <div className="text-2xl mb-1">{emoji}</div>
+      <div className="text-xl font-semibold text-[#111b21]">{value}</div>
+      <div className="text-xs text-[#667781]">{label}</div>
     </motion.div>
   );
 }
@@ -40,14 +40,14 @@ interface StatGridProps {
 
 export function StatGrid({ stats, delay = 0 }: StatGridProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 p-1">
+    <div className="grid grid-cols-2 gap-2 p-1">
       {stats.map((stat, i) => (
         <StatCard
           key={i}
           emoji={stat.emoji}
           value={stat.value}
           label={stat.label}
-          delay={delay + i * 0.1}
+          delay={delay + i * 0.08}
         />
       ))}
     </div>
