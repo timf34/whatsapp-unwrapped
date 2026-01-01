@@ -1,0 +1,238 @@
+{
+  "id": "fitz_sample",
+  "chatName": "Fitz Sample",
+  "generatedAt": "2026-01-01T01:56:55.345358",
+  "overview": {
+    "totalMessages": 792,
+    "totalDays": 19,
+    "participantCount": 18,
+    "dateRange": {
+      "start": "2025-11-08",
+      "end": "2025-11-26"
+    }
+  },
+  "leaderboard": [
+    {
+      "name": "Sam Enright",
+      "messages": 235,
+      "percentage": 29.7
+    },
+    {
+      "name": "Peter McLaughlin",
+      "messages": 84,
+      "percentage": 10.6
+    },
+    {
+      "name": "Bia",
+      "messages": 72,
+      "percentage": 9.1
+    },
+    {
+      "name": "Oisín Moran",
+      "messages": 46,
+      "percentage": 5.8
+    },
+    {
+      "name": "Gavin Leech",
+      "messages": 44,
+      "percentage": 5.6
+    },
+    {
+      "name": "Lucy Daly",
+      "messages": 38,
+      "percentage": 4.8
+    },
+    {
+      "name": "Neil Shevlin",
+      "messages": 37,
+      "percentage": 4.7
+    },
+    {
+      "name": "David Mcsharry",
+      "messages": 37,
+      "percentage": 4.7
+    },
+    {
+      "name": "Tom (Patch)",
+      "messages": 34,
+      "percentage": 4.3
+    },
+    {
+      "name": "Tim Farrelly",
+      "messages": 30,
+      "percentage": 3.8
+    }
+  ],
+  "peakTimes": {
+    "busiestHour": 14,
+    "busiestHourFormatted": "2 PM",
+    "busiestDay": "Saturday"
+  },
+  "funFacts": [
+    "📅 You've been chatting for 19 days (100.0% of days active)",
+    "🔥 Longest streak: 19 days in a row!",
+    "🎉 Chattiest day: 2025-11-08 with 81 messages",
+    "💬 Sam Enright is both the chattiest and most verbose!",
+    "🌙 You both chat most at 2 PM",
+    "📆 Saturdays are your chattiest days",
+    "📸 99 photos and videos shared",
+    "👀 4 deleted messages... what were they?",
+    "📚 Bia once wrote a 475-word essay!"
+  ],
+  "awards": [
+    {
+      "title": "Friendship Threshold: Single Bus Conversation",
+      "recipient": "Sam Enright",
+      "evidence": "Explicitly self-diagnosed: 'In true Sam fashion, friend = someone I spoke to on a bus one time' before inviting said bus friend to stay with him in Ireland. 235 messages of relentless social coordination later, the groupchat has become his personal event planning service.",
+      "quip": "Why gatekeep friendship when you can gatekeep nothing?"
+    },
+    {
+      "title": "The Casual Genealogy Flex",
+      "recipient": "Neil Shevlin",
+      "evidence": "Dropped '123 first cousins' like it was a normal number. Also mentioned: great-grandmother with 15 children, family reunion of 200 people, and a secret sister discovered via 23andMe DNA. All delivered with the energy of someone discussing the weather.",
+      "quip": "When your family tree needs its own database."
+    },
+    {
+      "title": "Professional Fake News Corrector",
+      "recipient": "Sam Enright",
+      "evidence": "Launched into detailed rant about Dublin's dezoned land being a council failure, then deleted it mid-argument: 'Wait wait I'm spreading fake news – apparently the initiative came entirely from DCC.' Self-correction speed: 90 seconds.",
+      "quip": "Gets mad at the council for doing exactly what he wanted."
+    },
+    {
+      "title": "Etymology Sniper (Birthday Edition)",
+      "recipient": "Gavin Leech",
+      "evidence": "Interrupted a birthday party invitation thread to correct 'fellas and fellettes' to 'fellers and fellas' citing Norse origins. When called 'Victorian-grammarian,' responded with 'I dabble.' 44 messages, 5.8 words each—every word counts.",
+      "quip": "Why let a party invitation go uncorrected?"
+    },
+    {
+      "title": "Most Committed to Feeling Everything",
+      "recipient": "Lucy Daly",
+      "evidence": "Never taken a paracetamol, refuses all medicine, inspired by Brave New World's 'savage' philosophy: 'I don't believe in turning anything in my body off ever really.' When challenged, doubled down: 'It's more the savage's perspective of just being meant to feel something.'",
+      "quip": "Pain is just your body's way of saying hello."
+    },
+    {
+      "title": "The Gytis Repost Diet",
+      "recipient": "David Mcsharry",
+      "evidence": "Declared 'I get all my information from gytis reposts' with the confidence of someone who's found the perfect information diet. When the group tried an intervention, responded 'bothsidesism' and 'only need gytis reposts.' 37 messages, zero other sources cited.",
+      "quip": "Why read the news when Gytis has already curated it?"
+    },
+    {
+      "title": "Accidental Academic Trespasser",
+      "recipient": "Tim Farrelly",
+      "evidence": "Casually admitted 'I snuck into art history lectures in tcd in years past' with the specificity of someone who did this regularly, then delivered statistical analysis: 'extremely strong bimodal distribution skewing towards retirees.' No further explanation offered.",
+      "quip": "Committed fraud, stayed for the demographics."
+    },
+    {
+      "title": "Microscopic Detail Detective",
+      "recipient": "Peter McLaughlin",
+      "evidence": "Noticed Dean Ball almost saying something at the 25-minute mark of a podcast. Analyzed why 'OpenAI' and 'the Pope' capitalization is funny. Interrogated Séan about emoji pairing choices. 84 messages averaging 19 words each—every punctuation mark matters.",
+      "quip": "Defusing conversational bombs one detail at a time."
+    },
+    {
+      "title": "Pub Plans With Newborns Award",
+      "recipient": "Sam Enright",
+      "evidence": "Joked 'Like all self-respecting men in Britain, we immediately abandoned the baby to go to the pub' then immediately pivoted to sincere: 'I can't wait to go to the pub with Ernie. Damn, I really want kids.' The roast became a life goal in three messages.",
+      "quip": "Why wait 18 years when pubs are right there?"
+    },
+    {
+      "title": "Accidental Productivity Optimizer",
+      "recipient": "Julian Gough",
+      "evidence": "Internet blocker (Freedom) blocked him during a Cloudflare outage, accidentally extending his writing session by an hour. 9 messages, 33.3 words each—every word earned through enforced disconnection.",
+      "quip": "Sometimes the best productivity hack is technical failure."
+    }
+  ],
+  "highlights": {
+    "notableQuotes": [
+      {
+        "text": "In true Sam fashion, friend = someone I spoke to on a bus one time.",
+        "author": "Sam Enright",
+        "context": "Self-aware about having a very generous definition of friendship"
+      },
+      {
+        "text": "Wherever I try to use it for a work task I end up finding my muscles tensed and my mind desirous of smashing it to pieces. But I think this is a genius design hint from Apple. The intended user does not use it for work.",
+        "author": "Gytis",
+        "context": "iPad as a philosophical statement about what Apple thinks of you"
+      },
+      {
+        "text": "furiously asking Claude 'how fast can you teach me to speak Hokkien'",
+        "author": "Peter McLaughlin",
+        "context": "Panic-learning a language via AI because the quota for monolingual Irish boys might be full"
+      },
+      {
+        "text": "I think you're meant to feel pain and don't believe in turning anything in my body off ever really if that makes sense",
+        "author": "Lucy Daly",
+        "context": "Inspired by Brave New World to become a human pain receptacle"
+      },
+      {
+        "text": "Why is Ireland an unlikely candidate for dinosaurs. Are we too thick to have had dinos or something",
+        "author": "Sean Keyes",
+        "context": "Ireland's geological incompetence is apparently a character flaw"
+      }
+    ],
+    "insideJokes": [
+      "Sam's link addiction / constant link sharing",
+      "The 123 first cousins / big Irish families",
+      "Sam's 'friend' from the bus",
+      "Gytis repost authority",
+      "Irish wife wins"
+    ],
+    "dynamics": [
+      "Sam floods the chat with links and articles; the group has learned to either engage or gently roast him about it",
+      "Neil's massive family keeps becoming the baseline for comparison—everyone else's family size is now measured against his 123 cousins",
+      "Peter McLaughlin and Sam Enright have a running thing where Peter writes long architectural/policy takes and Sam tries to get him to write controversial reviews",
+      "Sam Enright functions as the group's Dublin urban planning rage engine – gets genuinely furious about zoning decisions, then immediately fact-checks himself mid-rant",
+      "Tim keeps dropping links and observations about design/tech culture while everyone else is just vibing"
+    ],
+    "funnyMoments": [
+      "Neil's dad used his aunt's DNA to find his secret sister on 23andMe, who messaged saying 'you appear to be my aunt' despite not being a first cousin. Detective work ensued. The sister was in Cork. Neil's dad was more upset about the secret than the existence of the sister.",
+      "Peter asks for e-reader recommendations because his wife's due date is in a week. The conversation immediately pivots to PDF-to-EPUB conversion and whether Anthropic could discover a 'perfect PDF attractor state.'",
+      "Julian Gough's internet blocker (Freedom) blocks him from the internet during a Cloudflare outage, accidentally giving him an extra hour of writing—accidentally optimal productivity",
+      "Sam goes on a tear about Dublin's dezoned land, deletes a message, then admits 'Wait wait I'm spreading fake news' – turns out DCC did the whole thing themselves",
+      "Rucha invites everyone to black-tie birthday dinner, then immediately gets into a grammar debate where Gavin corrects 'fellas and fellettes' to 'fellers and fellas' (Norse etymology), and Rucha responds 'Dibbie dabba dibble dabble' – scholarship is advancing"
+    ],
+    "contradictions": [
+      {
+        "person": "Sam Enright",
+        "says": "Invites people to talks, events, and trips constantly",
+        "does": "Admits to taking a 6:30-9:30pm nap and hasn't had a normal sleep schedule since returning from the US"
+      },
+      {
+        "person": "Sam Enright",
+        "says": "Complains about eye strain from phone, says 'Computer and reading, no problems whatsoever'",
+        "does": "Immediately sends long WhatsApp messages, links, and invites to the same phone causing the strain"
+      },
+      {
+        "person": "Sam Enright",
+        "says": "Jokes about British men abandoning babies to go to the pub",
+        "does": "Immediately expresses genuine excitement about going to the pub with Ernie and says 'Damn, I really want kids'"
+      },
+      {
+        "person": "Sam Enright",
+        "says": "Goes on detailed rant about Dublin's dezoned land being a council failure",
+        "does": "Deletes message and admits 'Wait wait I'm spreading fake news – apparently the initiative came entirely from DCC'"
+      }
+    ],
+    "bestExchanges": [
+      {
+        "context": "Peter asks for e-reader recommendations for PDFs and EPUBs with a week until his wife's due date. The conversation immediately becomes absurdist.",
+        "punchline": "A practical question about e-readers spirals into speculation about AI discovering a perfect PDF through recursive self-improvement"
+      },
+      {
+        "context": "Bia misreads Séan's message about assembling furniture in his new flat as him complaining about having a new flat.",
+        "punchline": "Bia's misreading leads to her thinking Séan is sad about his new flat, then she apologizes for her terrible reading comprehension"
+      },
+      {
+        "context": "Ireland's dinosaur problem",
+        "punchline": "Entire thread is just Ireland roasting itself for geological incompetence and NIMBY-induced stagnation"
+      },
+      {
+        "context": "Lucy explains her pain philosophy",
+        "punchline": "Peter tries to logic her out of Brave New World cosplay; Lucy doubles down with 'savage's perspective' unironically"
+      },
+      {
+        "context": "David claims to get all his information from Gytis reposts",
+        "punchline": "David doubles down on his information diet being exclusively Gytis; the group's attempt to stage an intervention gets roasted as 'bothsidesism'"
+      }
+    ]
+  }
+}
