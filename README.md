@@ -1,6 +1,6 @@
 # WhatsApp Unwrapped
 
-A Python tool for analyzing WhatsApp chat exports, providing statistics, visualizations, and AI-powered insights into your conversations.
+(https://www.granola.ai/updates/granola-crunched)[https://www.granola.ai/updates/granola-crunched] but for Whatsapp convo's 
 
 ## Setup
 
